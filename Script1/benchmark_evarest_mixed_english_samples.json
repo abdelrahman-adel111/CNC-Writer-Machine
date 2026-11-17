@@ -1,0 +1,462 @@
+[
+  {
+    "id": "evarest-mixed-en-0026",
+    "image": "benchmark_real_images/evarest_scene_words/en_001_0026.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "MANAGEMENT",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 26
+    },
+    "metadata": {
+      "image_width": 156,
+      "image_height": 66,
+      "image_name": "word_303"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0033",
+    "image": "benchmark_real_images/evarest_scene_words/en_002_0033.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "Cairo",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 33
+    },
+    "metadata": {
+      "image_width": 102,
+      "image_height": 48,
+      "image_name": "word_359"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0037",
+    "image": "benchmark_real_images/evarest_scene_words/en_003_0037.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "OF",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 37
+    },
+    "metadata": {
+      "image_width": 19,
+      "image_height": 14,
+      "image_name": "word_198"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0041",
+    "image": "benchmark_real_images/evarest_scene_words/en_004_0041.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "LANDING",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 41
+    },
+    "metadata": {
+      "image_width": 166,
+      "image_height": 57,
+      "image_name": "word_95"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0078",
+    "image": "benchmark_real_images/evarest_scene_words/en_005_0078.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "we",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 78
+    },
+    "metadata": {
+      "image_width": 62,
+      "image_height": 26,
+      "image_name": "word_401"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0083",
+    "image": "benchmark_real_images/evarest_scene_words/en_006_0083.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "St.",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 83
+    },
+    "metadata": {
+      "image_width": 22,
+      "image_height": 22,
+      "image_name": "word_43"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0094",
+    "image": "benchmark_real_images/evarest_scene_words/en_007_0094.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "MATERNITY",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 94
+    },
+    "metadata": {
+      "image_width": 171,
+      "image_height": 33,
+      "image_name": "word_424"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0105",
+    "image": "benchmark_real_images/evarest_scene_words/en_008_0105.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "Computer",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 105
+    },
+    "metadata": {
+      "image_width": 276,
+      "image_height": 68,
+      "image_name": "word_265"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0135",
+    "image": "benchmark_real_images/evarest_scene_words/en_009_0135.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "GABER",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 135
+    },
+    "metadata": {
+      "image_width": 121,
+      "image_height": 69,
+      "image_name": "word_239"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0156",
+    "image": "benchmark_real_images/evarest_scene_words/en_010_0156.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "FIRE",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 156
+    },
+    "metadata": {
+      "image_width": 116,
+      "image_height": 51,
+      "image_name": "word_99"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0246",
+    "image": "benchmark_real_images/evarest_scene_words/en_011_0246.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "MISR",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 246
+    },
+    "metadata": {
+      "image_width": 413,
+      "image_height": 180,
+      "image_name": "word_214"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0254",
+    "image": "benchmark_real_images/evarest_scene_words/en_012_0254.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "3",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 254
+    },
+    "metadata": {
+      "image_width": 91,
+      "image_height": 132,
+      "image_name": "word_183"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0277",
+    "image": "benchmark_real_images/evarest_scene_words/en_013_0277.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "DAILY",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 277
+    },
+    "metadata": {
+      "image_width": 175,
+      "image_height": 69,
+      "image_name": "word_317"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0289",
+    "image": "benchmark_real_images/evarest_scene_words/en_014_0289.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "EXTINGUISHER",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 289
+    },
+    "metadata": {
+      "image_width": 252,
+      "image_height": 54,
+      "image_name": "word_101"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0350",
+    "image": "benchmark_real_images/evarest_scene_words/en_015_0350.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "manufacture",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 350
+    },
+    "metadata": {
+      "image_width": 254,
+      "image_height": 35,
+      "image_name": "word_402"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0366",
+    "image": "benchmark_real_images/evarest_scene_words/en_016_0366.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "20",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 366
+    },
+    "metadata": {
+      "image_width": 161,
+      "image_height": 125,
+      "image_name": "word_364"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0379",
+    "image": "benchmark_real_images/evarest_scene_words/en_017_0379.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "NGK",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 379
+    },
+    "metadata": {
+      "image_width": 84,
+      "image_height": 27,
+      "image_name": "word_161"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0385",
+    "image": "benchmark_real_images/evarest_scene_words/en_018_0385.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "smoking",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 385
+    },
+    "metadata": {
+      "image_width": 60,
+      "image_height": 16,
+      "image_name": "word_268"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0478",
+    "image": "benchmark_real_images/evarest_scene_words/en_019_0478.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "AGRICULTURE",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 478
+    },
+    "metadata": {
+      "image_width": 323,
+      "image_height": 139,
+      "image_name": "word_436"
+    }
+  },
+  {
+    "id": "evarest-mixed-en-0486",
+    "image": "benchmark_real_images/evarest_scene_words/en_020_0486.jpg",
+    "language": "mixed",
+    "languages": [
+      "en",
+      "ar"
+    ],
+    "category": "real-scene-english-word-in-current-mixed-mode",
+    "reference": "GEOGRAPHIC",
+    "source": {
+      "dataset": "EvArEST",
+      "url": "https://huggingface.co/datasets/Melaraby/EvArEST-dataset-for-Arabic-scene-text-recognition",
+      "license": "BSD-3-Clause",
+      "split": "test_en",
+      "row": 486
+    },
+    "metadata": {
+      "image_width": 162,
+      "image_height": 28,
+      "image_name": "word_433"
+    }
+  }
+]

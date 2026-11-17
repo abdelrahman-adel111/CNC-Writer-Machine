@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#101829">
+    <title>Document Reader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="app-shell">
+        <nav class="topbar" aria-label="Main navigation">
+            <a class="brand" href="/">
+                <span class="brand-mark" aria-hidden="true">D</span>
+                <span>Document<span class="brand-light">Reader</span></span>
+            </a>
+            <span class="topbar-note">Private, local document processing</span>
+        </nav>
+
+        <section class="hero">
+            <div class="hero-copy">
+                <p class="eyebrow">OCR + AI DOCUMENT ASSISTANT</p>
+                <h1>Make every document<br><span>easier to understand.</span></h1>
+                <p class="hero-description">
+                    Extract text from Arabic and English documents, review the OCR,
+                    and get a grounded summary.
+                </p>
+            </div>
+
+            <section class="upload-card" aria-labelledby="upload-title">
+                <div class="upload-card-heading">
+                    <span class="step-number">01</span>
+                    <div>
+                        <h2 id="upload-title">Upload a document</h2>
+                        <p>Images and PDF files up to 16 MB</p>
+                    </div>
+                </div>
+
+                {% if error %}
+                <div class="alert" role="alert">{{ error }}</div>
+                {% endif %}
+
+                <form action="/process" method="post" enctype="multipart/form-data" class="upload-form">
+                    <label class="language-field" for="language">
+                        <span>لغة المستند</span>
+                        <select id="language" name="language">
+                            <option value="auto" selected>اكتشاف تلقائي — الأفضل لمعظم الملفات</option>
+                            <option value="ar">العربية — فرض نموذج العربية</option>
+                            <option value="en">English — force English OCR</option>
+                        </select>
+                    </label>
+                    <p class="privacy-note">
+                        ملفات PDF ذات النص الرقمي تُقرأ مباشرةً بدون OCR. الصور والصفحات الممسوحة تُحلل تلقائيًا، ويمكنك فرض اللغة عند الحاجة.
+                    </p>
+                    <label for="document" class="upload-box">
+                        <span class="upload-icon" aria-hidden="true">+</span>
+                        <span class="upload-label">Choose a file or drop it here</span>
+                        <span class="upload-hint">PDF, PNG, JPG, TIFF, BMP or WEBP</span>
+                        <span class="selected-file" id="selected-file">No file selected</span>
+                        <input id="document" type="file" name="document"
+                               accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp" required>
+                    </label>
+                    <button type="submit" class="primary-button">
+                        <span>Analyze document</span><span aria-hidden="true">&rarr;</span>
+                    </button>
+                </form>
+
+                <p class="privacy-note">
+                    Your file is processed locally; expired previews are cleaned up on a new upload.
+                </p>
+            </section>
+        </section>
+
+        <section class="feature-row" aria-label="What happens next">
+            <article class="feature-item">
+                <span class="feature-index">01</span>
+                <div><h3>Extract</h3><p>Read text from scans and documents.</p></div>
+            </article>
+            <article class="feature-item">
+                <span class="feature-index">02</span>
+                <div><h3>Review</h3><p>Compare the result with your original file.</p></div>
+            </article>
+            <article class="feature-item">
+                <span class="feature-index">03</span>
+                <div><h3>Understand</h3><p>Get a summary grounded in the extracted text.</p></div>
+            </article>
+        </section>
+
+        <footer class="site-footer">Document Reader <span>Built for careful reading.</span></footer>
+    </main>
+    <script>
+        const fileInput = document.getElementById("document");
+        const selectedFile = document.getElementById("selected-file");
+        const uploadBox = document.querySelector(".upload-box");
+
+        fileInput.addEventListener("change", () => {
+            selectedFile.textContent = fileInput.files.length
+                ? fileInput.files[0].name
+                : "No file selected";
+        });
+
+        uploadBox.addEventListener("dragover", (event) => {
+            event.preventDefault();
+            uploadBox.classList.add("is-dragging");
+        });
+        uploadBox.addEventListener("dragleave", () => uploadBox.classList.remove("is-dragging"));
+        uploadBox.addEventListener("drop", (event) => {
+            event.preventDefault();
+            uploadBox.classList.remove("is-dragging");
+            if (event.dataTransfer.files.length) {
+                fileInput.files = event.dataTransfer.files;
+                fileInput.dispatchEvent(new Event("change"));
+            }
+        });
+    </script>
+</body>
+</html>

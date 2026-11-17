@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#101829">
+    <title>جاري معالجة المستند - Document Reader</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <main class="app-shell processing-shell">
+        <nav class="topbar" aria-label="التنقل الرئيسي">
+            <a class="brand" href="/">
+                <span class="brand-mark" aria-hidden="true">D</span>
+                <span dir="ltr">Document<span class="brand-light">Reader</span></span>
+            </a>
+        </nav>
+
+        <section class="processing-card" aria-labelledby="processing-title">
+            <div class="processing-spinner" aria-hidden="true"></div>
+            <p class="eyebrow">معالجة محلية للمستند</p>
+            <h1 id="processing-title">جاري تجهيز النتيجة</h1>
+            <p class="processing-message" id="processing-message" aria-live="polite">
+                تم استلام الملف. جاري بدء المعالجة...
+            </p>
+            <p class="processing-elapsed" id="processing-elapsed" aria-live="off">الوقت المنقضي: 00:00</p>
+            <div class="processing-progress" role="progressbar"
+                 aria-label="تقدم المعالجة" aria-valuemin="0" aria-valuemax="100"
+                 aria-valuenow="5" id="progress-bar">
+                <span id="progress-fill"></span>
+            </div>
+            <ol class="processing-steps">
+                <li data-stage="queued"><span>١</span><div><strong>استلام الملف</strong><small>حفظ الملف وتجهيزه للقراءة</small></div></li>
+                <li data-stage="ocr"><span>٢</span><div><strong>استخراج النص OCR</strong><small>قراءة الصفحات وترتيب النص العربي</small></div></li>
+                <li data-stage="model"><span>٣</span><div><strong>تحليل النموذج</strong><small>يعمل فقط إذا وصل OCR إلى حد الثقة</small></div></li>
+                <li data-stage="review"><span>٤</span><div><strong>مراجعتك واعتمادك</strong><small>لن يُرسل أي أمر إلى العتاد تلقائيًا</small></div></li>
+            </ol>
+            <div class="processing-error" id="processing-error" hidden>
+                <strong>تعذرت المعالجة</strong>
+                <p id="processing-error-message"></p>
+                <a class="back-btn" href="/">العودة والمحاولة مرة أخرى</a>
+            </div>
+            <p class="processing-footnote">
+                ملفات PDF النصية تُستخرج مباشرةً؛ الصفحات المصورة فقط تحتاج OCR، وقد يختلف وقتها حسب عدد الصفحات.
+            </p>
+        </section>
+    </main>
+    <script>
+        const jobId = {{ job_id|tojson }};
+        const statusUrl = `/status/${jobId}`;
+        const message = document.getElementById("processing-message");
+        const progress = document.getElementById("progress-bar");
+        const fill = document.getElementById("progress-fill");
+        const errorBox = document.getElementById("processing-error");
+        const stepOrder = ["queued", "ocr", "model", "review", "complete"];
+        let polling = true;
+        const startedAt = performance.now();
+
+        function updateElapsedTime() {
+            const elapsedSeconds = Math.floor((performance.now() - startedAt) / 1000);
+            const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
+            const seconds = String(elapsedSeconds % 60).padStart(2, "0");
+            document.getElementById("processing-elapsed").textContent =
+                `الوقت المنقضي: ${minutes}:${seconds}`;
+        }
+
+        async function pollStatus() {
+            while (polling) {
+                updateElapsedTime();
+                try {
+                    const response = await fetch(statusUrl, {cache: "no-store"});
+                    if (!response.ok) throw new Error("تعذر قراءة حالة المهمة. حدّث الصفحة أو ابدأ من جديد.");
+                    const state = await response.json();
+                    message.textContent = state.message;
+                    fill.style.width = `${state.progress}%`;
+                    progress.setAttribute("aria-valuenow", state.progress);
+
+                    const activeIndex = stepOrder.indexOf(state.stage);
+                    document.querySelectorAll(".processing-steps li").forEach((item) => {
+                        const itemIndex = stepOrder.indexOf(item.dataset.stage);
+                        item.classList.toggle("is-done", itemIndex < activeIndex || state.stage === "complete");
+                        item.classList.toggle("is-active", item.dataset.stage === state.stage);
+                        item.classList.toggle("is-skipped", state.stage === "review" && item.dataset.stage === "model");
+                    });
+
+                    if (state.stage === "complete") {
+                        polling = false;
+                        window.location.assign(state.result_url);
+                        return;
+                    }
+                    if (state.stage === "failed") {
+                        polling = false;
+                        document.querySelector(".processing-spinner").hidden = true;
+                        errorBox.hidden = false;
+                        document.getElementById("processing-error-message").textContent = state.error;
+                        return;
+                    }
+                } catch (error) {
+                    message.textContent = error.message;
+                }
+                await new Promise((resolve) => setTimeout(resolve, 900));
+            }
+        }
+
+        pollStatus();
+    </script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+[
+  {
+    "id": "arabic-school-form-photo",
+    "image": "benchmark_images/arabic_form_photo.jpg",
+    "language": "ar",
+    "languages": ["ar"],
+    "category": "arabic-form-camera-photo",
+    "reference": null
+  },
+  {
+    "id": "mixed-technical-roadmap",
+    "image": "benchmark_images/mixed_technical_roadmap.png",
+    "language": "mixed",
+    "languages": ["en", "ar"],
+    "category": "arabic-english-technical-bullets",
+    "reference": null
+  }
+]
