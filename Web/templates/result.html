@@ -3,38 +3,48 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#101829">
-    <title>Results - Document Reader</title>
+    <meta name="theme-color" content="#0b1220">
+    <title>Verification Workspace | CNC Smart Writer</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <main class="app-shell result-shell">
         <nav class="topbar" aria-label="Main navigation">
             <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">D</span>
-                <span>Document<span class="brand-light">Reader</span></span>
+                <span class="brand-mark" aria-hidden="true">CW</span>
+                <span class="brand-name">CNC Smart Writer<span class="brand-light">Document-to-Motion Control Studio</span></span>
             </a>
-            <a class="text-link" href="/">Upload another file <span aria-hidden="true">&rarr;</span></a>
+            <a class="text-link" href="/">New source <span aria-hidden="true">↗</span></a>
         </nav>
 
         <header class="result-heading">
-            <p class="eyebrow">DOCUMENT ANALYSIS</p>
-            <h1>Your document is ready.</h1>
-            <p class="hero-description">قارن النص بالصورة الأصلية وصحّح أي خطأ قبل الاعتماد.</p>
+            <div>
+                <p class="eyebrow"><span class="eyebrow-line"></span> VERIFICATION WORKSPACE</p>
+                <h1>Review before output.</h1>
+                <p class="hero-description">Compare the extracted source, make corrections, and approve the text before preparing CNC output.</p>
+            </div>
+            <span class="review-state"><span class="status-dot"></span> {{ "APPROVED" if human_approved else "AWAITING VERIFICATION" }}</span>
         </header>
 
-        <section class="result-grid">
+        <section class="review-grid">
             <aside class="preview-column">
-                <article class="panel preview-card">
+                <article class="panel source-panel">
                     <div class="panel-heading">
                         <div>
-                            <p class="eyebrow">SOURCE FILE</p>
-                            <h2>Original document</h2>
+                            <p class="eyebrow">01 / SOURCE</p>
+                            <h2>{% if preview_kind == "text" %}Direct text source{% else %}Original source preview{% endif %}</h2>
                         </div>
-                        <a class="small-link" href="{{ preview_url }}" target="_blank" rel="noopener">Open file</a>
+                        {% if preview_kind != "text" %}
+                        <a class="small-link" href="{{ preview_url }}" target="_blank" rel="noopener">Open source ↗</a>
+                        {% endif %}
                     </div>
                     <div class="document-preview">
-                        {% if preview_kind == "pdf" %}
+                        {% if preview_kind == "text" %}
+                        <div class="text-preview-card">
+                            <span class="file-type">DIRECT TEXT</span>
+                            <p dir="auto">{{ raw_text }}</p>
+                        </div>
+                        {% elif preview_kind == "pdf" %}
                         <iframe src="{{ preview_url }}" title="Preview of {{ filename }}"></iframe>
                         {% else %}
                         <a href="{{ preview_url }}" target="_blank" rel="noopener" class="image-preview-link">
@@ -43,138 +53,118 @@
                         {% endif %}
                     </div>
                     <div class="file-caption">
-                        <span class="file-type">{{ "PDF" if preview_kind == "pdf" else "IMAGE" }}</span>
+                        <span class="file-type">{{ "TEXT" if preview_kind == "text" else ("PDF" if preview_kind == "pdf" else "IMAGE") }}</span>
                         <span class="file-name" title="{{ filename }}">{{ filename }}</span>
                     </div>
                 </article>
 
-                <article class="panel document-facts">
-                    <p class="eyebrow">EXTRACTION DETAILS</p>
-                    <div class="fact-row"><span>Pages</span><strong>{{ page_count }}</strong></div>
-                    <div class="fact-row"><span>OCR language</span><strong>{{ language_label }}</strong></div>
-                    <div class="fact-row"><span>OCR engine</span><strong>{{ backend }}</strong></div>
-                    <div class="fact-row"><span>Status</span><strong class="status-value">{{ ocr_status }}</strong></div>
+                <article class="panel metadata-panel">
+                    <div class="panel-heading compact-heading">
+                        <div><p class="eyebrow">02 / EXTRACTION</p><h2>Source metadata</h2></div>
+                        <span class="metadata-status"><span class="status-dot"></span> READY</span>
+                    </div>
+                    <div class="metadata-grid">
+                        <div class="metadata-item"><span>Source type</span><strong>{{ "Direct text" if preview_kind == "text" else ("PDF document" if preview_kind == "pdf" else "Image file") }}</strong></div>
+                        <div class="metadata-item"><span>Pages</span><strong>{{ page_count }}</strong></div>
+                        {% if preview_kind != "text" %}
+                        <div class="metadata-item"><span>OCR language</span><strong>English</strong></div>
+                        <div class="metadata-item"><span>Extraction engine</span><strong>{{ backend }}</strong></div>
+                        {% endif %}
+                        <div class="metadata-item"><span>Confidence</span>
+                            <strong>
+                                {% if confidence_percent is not none %}{{ confidence_percent }}%{% elif preview_kind == "text" %}100%{% else %}Direct PDF text{% endif %}
+                            </strong>
+                        </div>
+                    </div>
+                    {% if ocr_warning %}
+                    <div class="inline-warning"><strong>Extraction note</strong><span>{{ ocr_warning }}</span></div>
+                    {% endif %}
+                    {% if has_ocr_confidence and preview_kind != "text" %}
+                    <p class="quality-note">OCR confidence is not a guaranteed measure of text accuracy. Verify names, numbers, and all content against the source.</p>
+                    {% endif %}
                 </article>
             </aside>
 
             <div class="results-column">
-                <article class="panel confidence-panel">
-                    <div class="confidence-heading">
-                        <div>
-                            <p class="eyebrow">
-                                {% if has_ocr_confidence %}MODEL CONFIDENCE — NOT MEASURED ACCURACY{% else %}PDF TEXT EXTRACTION{% endif %}
-                            </p>
-                            <h2>{{ confidence_label }}</h2>
-                        </div>
-                        {% if has_ocr_confidence %}
-                        <strong class="confidence-number">{{ confidence_percent }}<span>%</span></strong>
-                        {% endif %}
-                    </div>
-                    {% if has_ocr_confidence %}
-                    <div class="confidence-track" role="progressbar"
-                         aria-label="OCR confidence" aria-valuemin="0" aria-valuemax="100"
-                         aria-valuenow="{{ confidence_percent }}">
-                        <span style="width: {{ confidence_percent }}%"></span>
-                    </div>
-                    <p class="quality-note">
-                    درجة النموذج ليست قياسًا مؤكدًا لصحة الكلمات. حتى عند تجاوز 90%، راجع الأسماء والأرقام والنص كاملًا.
-                    </p>
-                    {% else %}
-                    <p class="quality-note">
-                    تم استخراج النص الرقمي مباشرةً من ملف PDF؛ لم تُشغّل OCR لهذه الصفحات. راجع ترتيب الأعمدة والمعادلات.
-                    </p>
-                    {% endif %}
-                </article>
-
-                {% if ocr_warning %}
-                <article class="panel alert-panel">
-                    <p class="eyebrow">OCR DIAGNOSTIC</p>
-                    <p>{{ ocr_warning }}</p>
-                </article>
-                {% endif %}
-
-                <article class="panel summary-panel">
-                    <div class="section-title">
-                        <span class="section-icon" aria-hidden="true">01</span>
-                        <div><p class="eyebrow">QUICK LOOK</p><h2>Extracted preview</h2></div>
-                    </div>
-                    <p class="summary-copy" dir="auto">{{ summary }}</p>
-                </article>
-
+                {% if processing_mode == "summarize" %}
                 <article class="panel ai-panel">
                     <div class="section-title">
                         <span class="section-icon ai-icon" aria-hidden="true">AI</span>
-                        <div><p class="eyebrow">GROUNDED IN OCR TEXT</p><h2>AI summary</h2></div>
+                        <div><p class="eyebrow">03 / OPTIONAL ASSIST</p><h2>AI summary</h2></div>
+                        <span class="ai-status">{{ "PROCESSING" if model_status == "processing" else ("READY" if model_status == "complete" else ("OFFLINE" if model_status == "offline" else ("SKIPPED" if model_status == "skipped" else ""))) }}</span>
                     </div>
                     <p class="ai-copy" id="ai-summary" data-job-id="{{ job_id }}"
                        data-model-status="{{ model_status }}" aria-live="polite" dir="auto">{{ ai_result }}</p>
                     <p class="quality-note" id="ai-summary-note"
                        {% if not model_input_truncated or model_status != "complete" %}hidden{% endif %}>
-                        تم تلخيص مقتطفات موزعة من الملف لطوله؛ راجع النص المستخرج كاملًا للتفاصيل.
+                        This summary uses selected excerpts because the source text was long. Use the complete verified text below as the authoritative source.
                     </p>
                 </article>
+                {% endif %}
 
-                <details class="panel text-panel" open>
-                    <summary>
-                        <span><span class="eyebrow">OCR OUTPUT</span><strong>النص المستخرج — صحّح النص بالأسفل</strong></span>
-                        <span class="details-toggle" aria-hidden="true"></span>
-                    </summary>
-                    <textarea readonly dir="auto" aria-label="Full extracted text">{% if raw_text %}{{ raw_text }}{% else %}No text was extracted. See the OCR diagnostic for details.{% endif %}</textarea>
-                </details>
-
-                <form class="panel approval-panel" action="{{ url_for('approve_review', job_id=job_id) }}" method="post">
-                    {% if human_approved %}
-                    <div class="approval-confirmation" role="status">
-                        <strong>تم حفظ اعتمادك للنص المصحح.</strong>
-                        <p>لم يتم إرسال أي أمر إلى العتاد؛ لا يوجد ربط تنفيذي بالهاردوير في هذه النسخة.</p>
+                {% if human_approved %}
+                <article class="panel export-panel">
+                    <div class="section-title">
+                        <span class="section-icon export-icon" aria-hidden="true">04</span>
+                        <div><p class="eyebrow">04 / APPROVED OUTPUT</p><h2>Export &amp; CNC Output</h2></div>
+                        <span class="approved-badge"><span>✓</span> VERIFIED</span>
                     </div>
-                    {% else %}
-                    <p class="eyebrow">مراجعة بشرية مطلوبة</p>
-                    <h2>راجع النص قبل اعتماده</h2>
-                    <p class="quality-note">عدّل النص إذا وجدت خطأ، ثم أكد أنك قارنته بالمستند الأصلي. هذا الاعتماد لا يشغّل العتاد.</p>
-                    <label class="reviewed-text-label" for="reviewed-text">النص بعد المراجعة والتصحيح</label>
+                    <p class="quality-note">Your approved text is ready. The G-code below is a starter preview with placeholder pen motion; verify machine settings and toolpaths before use.</p>
+                    <div class="export-actions">
+                        <a class="secondary-button" href="{{ url_for('download_approved_text', job_id=job_id) }}"><span aria-hidden="true">↓</span> Approved text <small>.TXT</small></a>
+                        <a class="secondary-button" href="{{ url_for('download_approved_gcode', job_id=job_id) }}"><span aria-hidden="true">↓</span> Starter G-Code <small>.GCODE</small></a>
+                    </div>
+                    <div class="gcode-window">
+                        <div class="gcode-window-bar">
+                            <span class="window-lights" aria-hidden="true"><i></i><i></i><i></i></span>
+                            <span>STARTER-PROGRAM.GCODE</span>
+                            <span class="gcode-live"><span></span> PREVIEW</span>
+                        </div>
+                        <pre class="gcode-preview" aria-label="Generated starter G-code preview"><code id="gcode-code">{{ gcode_preview }}</code></pre>
+                    </div>
+                    <div class="approval-confirmation" role="status">
+                        <strong>Human verification complete.</strong>
+                        <p>Text preparation is approved for the G-Code export pipeline. No machine is activated by this preview.</p>
+                    </div>
+                </article>
+                {% else %}
+                <form class="panel approval-panel" action="{{ url_for('approve_review', job_id=job_id) }}" method="post">
+                    <div class="section-title">
+                        <span class="section-icon verify-icon" aria-hidden="true">03</span>
+                        <div><p class="eyebrow">03 / HUMAN VERIFICATION</p><h2>Verify &amp; edit text</h2></div>
+                    </div>
+                    <p class="quality-note">Correct OCR errors and confirm every line against the original. Approval prepares text for export; it does not execute machine motion.</p>
+                    <label class="reviewed-text-label" for="reviewed-text">Verified source text</label>
                     <textarea id="reviewed-text" name="reviewed_text" dir="auto" required
-                              aria-label="النص المصحح للاعتماد">{{ reviewed_text }}</textarea>
+                              aria-label="Verified source text">{{ reviewed_text }}</textarea>
                     <label class="approval-check">
                         <input type="checkbox" name="approve" value="yes" required>
-                        <span>راجعت النص مقابل الملف الأصلي وأوافق على اعتماد النسخة المعروضة.</span>
+                        <span>I have checked this text against the source and approve it for output preparation.</span>
                     </label>
                     <button class="primary-button approval-button" type="submit">
-                        <span>حفظ النص المعتمد</span><span aria-hidden="true">&rarr;</span>
+                        <span>Approve &amp; Prepare Output</span><span class="button-arrow" aria-hidden="true">→</span>
                     </button>
-                    {% endif %}
                 </form>
-
-                <details class="panel page-details">
-                    <summary>
-                        <span><span class="eyebrow">PER-PAGE RESULTS</span><strong>Page details</strong></span>
-                        <span class="details-toggle" aria-hidden="true"></span>
-                    </summary>
-                    <ul>
-                        {% for page in pages %}
-                        <li>
-                            <span>Page {{ page.page }} <span class="detail-backend">{{ page.backend }}</span></span>
-                            <strong>{{ "%.0f"|format(page.confidence * 100) }}%</strong>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                </details>
+                {% endif %}
             </div>
         </section>
 
-        <footer class="site-footer">Document Reader <span>الاعتماد هنا للمراجعة فقط — لا يتحكم بالهاردوير.</span></footer>
+        <footer class="site-footer">
+            <span>CNC SMART WRITER <i>·</i> DOCUMENT-TO-MOTION CONTROL STUDIO</span>
+            <span>Human-verified text preparation &amp; G-Code export pipeline</span>
+        </footer>
     </main>
     <script>
         const aiSummary = document.getElementById("ai-summary");
         const aiSummaryNote = document.getElementById("ai-summary-note");
-        if (aiSummary.dataset.modelStatus === "processing") {
+        if (aiSummary && aiSummary.dataset.modelStatus === "processing") {
             const statusUrl = `/status/${aiSummary.dataset.jobId}`;
             const pollSummary = async () => {
                 try {
                     const response = await fetch(statusUrl, {cache: "no-store"});
-                    if (!response.ok) return;
+                    if (!response.ok) throw new Error("Could not refresh the AI summary status.");
                     const state = await response.json();
-                    if (state.model_status === "complete" || state.model_status === "error") {
+                    if (["complete", "error", "offline", "skipped"].includes(state.model_status)) {
                         aiSummary.textContent = state.ai_result;
                         aiSummary.dataset.modelStatus = state.model_status;
                         aiSummaryNote.hidden = !(
@@ -186,9 +176,31 @@
                 } catch (error) {
                     console.warn("Could not refresh the AI summary status.", error);
                 }
-                window.setTimeout(pollSummary, 3000);
+                window.setTimeout(pollSummary, 2500);
             };
-            window.setTimeout(pollSummary, 1500);
+            window.setTimeout(pollSummary, 1000);
+        }
+
+        const gcodeCode = document.getElementById("gcode-code");
+        if (gcodeCode) {
+            const source = gcodeCode.textContent;
+            const tokenPattern = /;.*|(?:G|M)\d+|[XYZF][-+]?\d*\.?\d+/g;
+            gcodeCode.replaceChildren();
+            source.split("\n").forEach((line, lineIndex, lines) => {
+                let cursor = 0;
+                for (const match of line.matchAll(tokenPattern)) {
+                    gcodeCode.append(document.createTextNode(line.slice(cursor, match.index)));
+                    const token = document.createElement("span");
+                    token.className = match[0].startsWith(";")
+                        ? "gcode-comment"
+                        : (/^(G|M)/.test(match[0]) ? "gcode-command" : "gcode-coordinate");
+                    token.textContent = match[0];
+                    gcodeCode.append(token);
+                    cursor = match.index + match[0].length;
+                }
+                gcodeCode.append(document.createTextNode(line.slice(cursor)));
+                if (lineIndex < lines.length - 1) gcodeCode.append(document.createTextNode("\n"));
+            });
         }
     </script>
 </body>

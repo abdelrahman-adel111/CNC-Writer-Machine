@@ -3,100 +3,201 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#101829">
-    <title>Document Reader</title>
+    <meta name="theme-color" content="#0b1220">
+    <title>CNC Smart Writer | Document-to-Motion Control Studio</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
 <body>
     <main class="app-shell">
         <nav class="topbar" aria-label="Main navigation">
             <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">D</span>
-                <span>Document<span class="brand-light">Reader</span></span>
+                <span class="brand-mark" aria-hidden="true">CW</span>
+                <span class="brand-name">CNC Smart Writer<span class="brand-light">Document-to-Motion Control Studio</span></span>
             </a>
-            <span class="topbar-note">Private, local document processing</span>
+            <span class="topbar-status"><span class="status-dot"></span> LOCAL WORKSPACE</span>
         </nav>
 
         <section class="hero">
             <div class="hero-copy">
-                <p class="eyebrow">OCR + AI DOCUMENT ASSISTANT</p>
-                <h1>Make every document<br><span>easier to understand.</span></h1>
+                <p class="eyebrow"><span class="eyebrow-line"></span> DOCUMENT-TO-MOTION WORKFLOW</p>
+                <h1>From source text<br>to <span>verified output.</span></h1>
                 <p class="hero-description">
-                    Extract text from Arabic and English documents, review the OCR,
-                    and get a grounded summary.
+                    Extract or enter English text, verify every line, then prepare a starter G-code file for your CNC writing workflow.
                 </p>
+                <div class="workflow-strip" aria-label="Workflow stages">
+                    <span><b>01</b> Input</span><i></i><span><b>02</b> Extract</span><i></i><span><b>03</b> Verify</span><i></i><span><b>04</b> Export</span>
+                </div>
+                <div class="engineering-note">
+                    <span class="note-icon" aria-hidden="true">⌁</span>
+                    <p><strong>Human-verified text preparation</strong><br>G-code export pipeline with placeholder motion only.</p>
+                </div>
             </div>
 
-            <section class="upload-card" aria-labelledby="upload-title">
-                <div class="upload-card-heading">
-                    <span class="step-number">01</span>
-                    <div>
-                        <h2 id="upload-title">Upload a document</h2>
-                        <p>Images and PDF files up to 16 MB</p>
+            <section class="workbench panel" aria-labelledby="input-title">
+                <div class="workbench-heading">
+                    <div class="workbench-title">
+                        <span class="step-number">01</span>
+                        <div>
+                            <p class="eyebrow">INPUT STATION</p>
+                            <h2 id="input-title">Prepare your source</h2>
+                        </div>
                     </div>
+                    <span class="limit-badge">MAX 16 MB</span>
                 </div>
 
                 {% if error %}
                 <div class="alert" role="alert">{{ error }}</div>
                 {% endif %}
 
-                <form action="/process" method="post" enctype="multipart/form-data" class="upload-form">
-                    <label class="language-field" for="language">
-                        <span>لغة المستند</span>
-                        <select id="language" name="language">
-                            <option value="auto" selected>اكتشاف تلقائي — الأفضل لمعظم الملفات</option>
-                            <option value="ar">العربية — فرض نموذج العربية</option>
-                            <option value="en">English — force English OCR</option>
+                <form action="/process" method="post" enctype="multipart/form-data" class="upload-form" id="input-form">
+                    <input type="hidden" name="language" value="en">
+                    <div class="input-tabs" role="tablist" aria-label="Choose one input source">
+                        <button class="input-tab is-selected" id="upload-tab" type="button" role="tab"
+                                aria-selected="true" aria-controls="upload-panel">Upload File / Image</button>
+                        <button class="input-tab" id="text-tab" type="button" role="tab"
+                                aria-selected="false" aria-controls="text-panel">Direct Text Input</button>
+                    </div>
+
+                    <div class="input-panel" id="upload-panel" role="tabpanel" aria-labelledby="upload-tab">
+                        <label for="document" class="upload-box" id="upload-box">
+                            <span class="upload-icon" aria-hidden="true">↑</span>
+                            <span class="upload-label">Drop a source file here</span>
+                            <span class="upload-hint">or browse your device</span>
+                            <span class="format-hint">PDF · PNG · JPG · TIFF · BMP · WEBP</span>
+                            <input id="document" type="file" name="document"
+                                   accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp">
+                        </label>
+                        <div class="selected-source" id="selected-file-row" hidden>
+                            <span class="source-type" aria-hidden="true">FILE</span>
+                            <span class="selected-file" id="selected-file"></span>
+                            <span class="file-size" id="file-size"></span>
+                            <button class="clear-input" id="clear-file" type="button" aria-label="Clear selected file">×</button>
+                        </div>
+                    </div>
+
+                    <div class="input-panel" id="text-panel" role="tabpanel" aria-labelledby="text-tab" hidden>
+                        <label class="text-input-group" for="direct_text">
+                            <span class="field-label">Text source <span>ENGLISH OCR / TEXT PIPELINE</span></span>
+                            <textarea id="direct_text" name="direct_text"
+                                      placeholder="Type or paste the text you want to prepare..." rows="8"></textarea>
+                        </label>
+                        <div class="selected-source" id="selected-text-row" hidden>
+                            <span class="source-type text-type" aria-hidden="true">TEXT</span>
+                            <span class="selected-file" id="text-character-count">0 characters</span>
+                            <button class="clear-input" id="clear-text" type="button" aria-label="Clear entered text">×</button>
+                        </div>
+                    </div>
+
+                    <label class="mode-field" for="processing_mode">
+                        <span class="field-label">Processing mode <span>OPTIONAL AI ASSIST</span></span>
+                        <select id="processing_mode" name="processing_mode">
+                            <option value="summarize" selected>Summarize with AI</option>
+                            <option value="as_is">Keep Text As-Is (No Summary)</option>
                         </select>
                     </label>
-                    <p class="privacy-note">
-                        ملفات PDF ذات النص الرقمي تُقرأ مباشرةً بدون OCR. الصور والصفحات الممسوحة تُحلل تلقائيًا، ويمكنك فرض اللغة عند الحاجة.
-                    </p>
-                    <label for="document" class="upload-box">
-                        <span class="upload-icon" aria-hidden="true">+</span>
-                        <span class="upload-label">Choose a file or drop it here</span>
-                        <span class="upload-hint">PDF, PNG, JPG, TIFF, BMP or WEBP</span>
-                        <span class="selected-file" id="selected-file">No file selected</span>
-                        <input id="document" type="file" name="document"
-                               accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp" required>
-                    </label>
-                    <button type="submit" class="primary-button">
-                        <span>Analyze document</span><span aria-hidden="true">&rarr;</span>
-                    </button>
-                </form>
 
-                <p class="privacy-note">
-                    Your file is processed locally; expired previews are cleaned up on a new upload.
-                </p>
+                    <button type="submit" class="primary-button" id="submit-button" disabled>
+                        <span>Analyze Document</span><span class="button-arrow" aria-hidden="true">→</span>
+                    </button>
+                    <p class="form-footnote"><span class="status-dot"></span> English-only text processing · local review · human approval required before export</p>
+                </form>
             </section>
         </section>
 
-        <section class="feature-row" aria-label="What happens next">
-            <article class="feature-item">
-                <span class="feature-index">01</span>
-                <div><h3>Extract</h3><p>Read text from scans and documents.</p></div>
-            </article>
-            <article class="feature-item">
-                <span class="feature-index">02</span>
-                <div><h3>Review</h3><p>Compare the result with your original file.</p></div>
-            </article>
-            <article class="feature-item">
-                <span class="feature-index">03</span>
-                <div><h3>Understand</h3><p>Get a summary grounded in the extracted text.</p></div>
-            </article>
+        <section class="feature-row" aria-label="CNC Smart Writer workflow">
+            <article class="feature-item"><span class="feature-index">01</span><div><h3>Extract precisely</h3><p>Read text from document images and PDFs.</p></div></article>
+            <article class="feature-item"><span class="feature-index">02</span><div><h3>Verify before motion</h3><p>Edit the recognized content before approving.</p></div></article>
+            <article class="feature-item"><span class="feature-index">03</span><div><h3>Prepare CNC output</h3><p>Export approved text and starter G-code.</p></div></article>
         </section>
 
-        <footer class="site-footer">Document Reader <span>Built for careful reading.</span></footer>
+        <footer class="site-footer">
+            <span>CNC SMART WRITER <i>·</i> DOCUMENT-TO-MOTION CONTROL STUDIO</span>
+            <span>Human-verified text preparation &amp; G-Code export pipeline</span>
+        </footer>
     </main>
     <script>
         const fileInput = document.getElementById("document");
         const selectedFile = document.getElementById("selected-file");
-        const uploadBox = document.querySelector(".upload-box");
+        const fileSize = document.getElementById("file-size");
+        const fileRow = document.getElementById("selected-file-row");
+        const textRow = document.getElementById("selected-text-row");
+        const uploadBox = document.getElementById("upload-box");
+        const directText = document.getElementById("direct_text");
+        const submitButton = document.getElementById("submit-button");
+        const uploadTab = document.getElementById("upload-tab");
+        const textTab = document.getElementById("text-tab");
+        const uploadPanel = document.getElementById("upload-panel");
+        const textPanel = document.getElementById("text-panel");
+        const allowedExtensions = /\.(pdf|png|jpe?g|bmp|tiff?|webp)$/i;
+        let activeInput = "file";
 
-        fileInput.addEventListener("change", () => {
-            selectedFile.textContent = fileInput.files.length
-                ? fileInput.files[0].name
-                : "No file selected";
+        function isValidSelectedFile() {
+            if (!fileInput.files.length) return false;
+            const file = fileInput.files[0];
+            return allowedExtensions.test(file.name) && file.size <= 16 * 1024 * 1024;
+        }
+
+        function formatFileSize(bytes) {
+            return bytes < 1024 * 1024
+                ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+                : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+        }
+
+        function updateSubmitState() {
+            submitButton.disabled = activeInput === "file"
+                ? !isValidSelectedFile()
+                : directText.value.trim().length === 0;
+        }
+
+        function showFileState() {
+            const hasFile = fileInput.files.length > 0;
+            fileRow.hidden = !hasFile;
+            uploadBox.classList.toggle("has-file", hasFile);
+            if (hasFile) {
+                selectedFile.textContent = fileInput.files[0].name;
+                fileSize.textContent = formatFileSize(fileInput.files[0].size);
+            }
+            updateSubmitState();
+        }
+
+        function setActiveInput(mode) {
+            activeInput = mode;
+            uploadTab.classList.toggle("is-selected", mode === "file");
+            textTab.classList.toggle("is-selected", mode === "text");
+            uploadTab.setAttribute("aria-selected", String(mode === "file"));
+            textTab.setAttribute("aria-selected", String(mode === "text"));
+            uploadPanel.hidden = mode !== "file";
+            textPanel.hidden = mode !== "text";
+            if (mode === "file") {
+                directText.value = "";
+                textRow.hidden = true;
+            } else {
+                fileInput.value = "";
+                showFileState();
+            }
+            updateSubmitState();
+        }
+
+        uploadTab.addEventListener("click", () => setActiveInput("file"));
+        textTab.addEventListener("click", () => setActiveInput("text"));
+        fileInput.addEventListener("change", showFileState);
+        directText.addEventListener("input", () => {
+            const hasText = directText.value.trim().length > 0;
+            textRow.hidden = !hasText;
+            document.getElementById("text-character-count").textContent =
+                `${directText.value.length.toLocaleString()} characters`;
+            updateSubmitState();
+        });
+        document.getElementById("clear-file").addEventListener("click", () => {
+            fileInput.value = "";
+            showFileState();
+            updateSubmitState();
+        });
+        document.getElementById("clear-text").addEventListener("click", () => {
+            directText.value = "";
+            textRow.hidden = true;
+            updateSubmitState();
+            directText.focus();
         });
 
         uploadBox.addEventListener("dragover", (event) => {

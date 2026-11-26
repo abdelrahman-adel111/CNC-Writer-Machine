@@ -9,7 +9,8 @@ import urllib.request
 import uuid
 from pathlib import Path
 
-from flask import Flask, abort, render_template, request, send_from_directory
+from flask import Flask, abort, render_template, request, send_file, send_from_directory
+from io import BytesIO
 from werkzeug.exceptions import RequestEntityTooLarge
 import pymupdf
 
@@ -77,7 +78,32 @@ def summarize_text(text: str) -> str:
     return ". ".join(sentences[:3]) + "."
 
 
+def generate_starter_gcode(text: str) -> str:
+    gcode_lines = [
+        "; CNC Smart Writer starter pen plotter program",
+        "; Human-verified text preparation - motion placeholders only",
+        "G21 ; millimeters",
+        "G90 ; absolute positioning",
+        "G0 Z5 ; pen up",
+    ]
+    for line_number, line in enumerate(text.splitlines() or [""], start=1):
+        y = (line_number - 1) * 10
+        safe_comment = "".join(
+            char for char in line[:80] if char.isprintable()
+        )
+        gcode_lines.extend([
+            f"; Text line {line_number}: {safe_comment}",
+            f"G0 X0 Y{y}",
+            "G1 Z0 ; pen down",
+            "G1 X10 ; placeholder motion",
+            "G0 Z5 ; pen up",
+        ])
+    gcode_lines.extend(["G0 X0 Y0", "M30 ; end program"])
+    return "\n".join(gcode_lines) + "\n"
+
+
 def run_ocr_isolated(source_path: Path, languages: list[str]) -> dict:
+    languages = ["en"]
     output_path = source_path.with_suffix(".ocr.json")
     command = [
         sys.executable,
@@ -156,17 +182,10 @@ def run_ocr_isolated(source_path: Path, languages: list[str]) -> dict:
 def call_vlm_service(
     text: str, task: str = "summary", ocr_confidence: float = 1.0
 ) -> dict:
-    has_arabic = any(
-        "\u0600" <= char <= "\u06ff"
-        or "\u0750" <= char <= "\u077f"
-        or "\ufb50" <= char <= "\ufdff"
-        or "\ufe70" <= char <= "\ufeff"
-        for char in text
-    )
     payload = json.dumps({
         "text": text,
         "task": task,
-        "language": "ar" if has_arabic else "en",
+        "language": "en",
         "ocr_confidence": ocr_confidence,
     }).encode("utf-8")
 
@@ -255,25 +274,13 @@ def build_result_context(
         model_status = "skipped"
     elif not meets_target:
         ai_result = (
-            "تم إيقاف التلخيص الآلي لأن ثقة OCR أقل من 90%. راجع النص وصحح الأخطاء قبل اعتماد المستند."
-            if any("\u0600" <= char <= "\u06ff" for char in extracted_text)
-            else "AI summary was skipped because OCR confidence is below 90%. Review and correct the extracted text before approving it."
+            "AI summary was skipped because OCR confidence is below 90%. "
+            "Review and correct the extracted text before approving it."
         )
         model_status = "skipped"
     else:
-        ai_result = "اكتمل OCR. يجري إعداد ملخص النموذج في الخلفية..."
+        ai_result = "OCR is complete. Preparing the model summary in the background..."
         model_status = "pending"
-
-    detected_language = result.get("detected_language", "unknown")
-    detected_labels = {
-        "ar": "Arabic (auto-detected)",
-        "en": "English (auto-detected)",
-        "mixed": "Arabic + English (auto-detected)",
-    }
-    if language_label == "Auto-detect":
-        language_label = detected_labels.get(
-            detected_language, "Auto-detect (scanned pages use OCR)"
-        )
 
     return {
         "filename": filename,
@@ -294,6 +301,7 @@ def build_result_context(
         "has_ocr_confidence": has_ocr_confidence,
         "ocr_confidence": ocr_confidence if has_ocr_confidence else 1.0,
         "meets_target": meets_target,
+        "processing_mode": "summarize",
         "preview_kind": "pdf" if suffix == ".pdf" else "image",
         "preview_url": f"/preview/{upload_path.name}",
         "reviewed_text": extracted_text,
@@ -308,57 +316,123 @@ def process_upload_job(
     suffix: str,
     languages: list[str],
     language_label: str,
+    direct_text: str = "",
+    processing_mode: str = "summarize",
 ) -> None:
     try:
+        if direct_text.strip():
+            extracted_text = direct_text.strip()
+            context = {
+                "filename": "Direct text",
+                "job_id": job_id,
+                "language_label": "Not applicable",
+                "page_count": 1,
+                "summary": summarize_text(extracted_text),
+                "ai_result": (
+                    "Preparing the AI summary..."
+                    if processing_mode == "summarize"
+                    else "AI summary skipped because Keep Text As-Is was selected."
+                ),
+                "model_status": "processing" if processing_mode == "summarize" else "skipped",
+                "model_input_truncated": False,
+                "raw_text": extracted_text,
+                "ocr_warning": None,
+                "ocr_status": "direct_text",
+                "pages": [],
+                "backend": "direct_text",
+                "confidence_percent": 100,
+                "confidence_label": "Direct text — OCR not required",
+                "has_ocr_confidence": True,
+                "ocr_confidence": 1.0,
+                "meets_target": True,
+                "processing_mode": processing_mode,
+                "preview_kind": "text",
+                "preview_url": None,
+                "reviewed_text": extracted_text,
+                "human_approved": False,
+            }
+            update_job(
+                job_id,
+                stage="complete",
+                progress=100,
+                message="Direct text received. Ready for human review.",
+                result=context,
+                updated_at=time.time(),
+            )
+            if processing_mode == "summarize":
+                worker = threading.Thread(
+                    target=run_vlm_summary,
+                    args=(job_id, extracted_text, 1.0),
+                    daemon=True,
+                )
+                with PROCESSING_JOBS_LOCK:
+                    PROCESSING_JOBS[job_id]["model_worker"] = worker
+                worker.start()
+            return
+
         update_job(
             job_id,
             stage="ocr",
             progress=15,
-            message="تم حفظ الملف. جاري فحص النص الرقمي وتحديد الصفحات التي تحتاج OCR...",
+            message="File saved. Checking embedded text and pages that require OCR...",
         )
         with OCR_PROCESS_LOCK:
             update_job(
                 job_id,
                 stage="ocr",
                 progress=20,
-                message="جاري استخراج النص الرقمي أو قراءة الصفحات المصورة وترتيب النص...",
+                message="Extracting embedded text or reading scanned pages...",
             )
             result = run_ocr_isolated(upload_path, languages)
         update_job(
             job_id,
             stage="model",
             progress=72,
-            message="اكتمل OCR. جاري تقييم الثقة وتجهيز النتيجة...",
+            message="OCR complete. Evaluating confidence and preparing the result...",
         )
         context = build_result_context(
             result, filename, suffix, upload_path, job_id, language_label
         )
+        context["processing_mode"] = processing_mode
         summary_request = None
-        if context["meets_target"] and result.get("ocr_status") != "no_text_detected":
+        if (
+            processing_mode == "summarize"
+            and context["meets_target"]
+            and result.get("ocr_status") != "no_text_detected"
+        ):
             update_job(
                 job_id,
                 stage="model",
                 progress=82,
-                message="اكتمل OCR. جاري تجهيز النتيجة؛ سيظهر ملخص النموذج عند اكتماله.",
+                message="OCR complete. Preparing the AI summary...",
             )
             context["model_status"] = "processing"
             summary_request = (
                 context["raw_text"],
                 context["ocr_confidence"],
             )
+        elif processing_mode == "as_is":
+            context["model_status"] = "skipped"
+            context["ai_result"] = "AI summary skipped because Keep Text As-Is was selected."
+            update_job(
+                job_id,
+                stage="review",
+                progress=90,
+                message="Processing complete. Proceeding to human review.",
+            )
         elif result.get("ocr_status") == "no_text_detected":
             update_job(
                 job_id,
                 stage="review",
                 progress=90,
-                message="لم يتم اكتشاف نص مقروء. راجع تشخيص OCR والصورة الأصلية.",
+                message="No readable text was detected. Review the OCR diagnostic.",
             )
         else:
             update_job(
                 job_id,
                 stage="review",
                 progress=90,
-                message="الثقة أقل من 90%؛ تم تخطي النموذج لتجنب تلخيص قراءة غير مؤكدة.",
+                message="Confidence is below 90%; the model summary was skipped.",
             )
 
         model_worker = None
@@ -374,9 +448,9 @@ def process_upload_job(
                 job.update(
                     stage="complete",
                     progress=100,
-                    message="اكتمل استخراج النص. راجعه الآن؛ ملخص النموذج سيظهر عند اكتماله."
+                    message="Text extraction complete. Review the result; the AI summary will appear when complete."
                     if summary_request is not None
-                    else "اكتملت المعالجة. راجع النص الأصلي والمستخرج قبل الاعتماد.",
+                    else "Processing complete. Review the extracted text before approval.",
                     result=context,
                     updated_at=time.time(),
                 )
@@ -386,7 +460,7 @@ def process_upload_job(
             model_worker.start()
     except Exception as exc:
         app.logger.exception("Document processing job %s failed", job_id)
-        update_job(job_id, stage="failed", error=str(exc), message="تعذر إكمال المعالجة.")
+        update_job(job_id, stage="failed", error=str(exc), message="Unable to complete processing.")
         if upload_path.exists():
             try:
                 upload_path.unlink()
@@ -406,10 +480,12 @@ def run_vlm_summary(job_id: str, text: str, ocr_confidence: float) -> None:
         ai_result = response.get("result") or "The model returned an empty summary."
         if model_status == "error":
             app.logger.warning("VLM summary failed for job %s: %s", job_id, ai_result)
+            ai_result = "Local AI service (Ollama) is offline — showing extracted text only."
+            model_status = "offline"
     except Exception as exc:
         app.logger.exception("VLM summary job %s failed", job_id)
-        model_status = "error"
-        ai_result = f"VLM summary failed: {exc}"
+        model_status = "offline"
+        ai_result = "Local AI service (Ollama) is offline — showing extracted text only."
 
     with PROCESSING_JOBS_LOCK:
         job = PROCESSING_JOBS.get(job_id)
@@ -443,7 +519,7 @@ def index():
 def health():
     return {
         "status": "ok",
-        "message": "OCR web demo is running",
+        "message": "CNC Smart Writer is running",
         "version": APP_BUILD_ID,
     }
 
@@ -467,42 +543,63 @@ def preview_file(filename: str):
 @app.route("/process", methods=["POST"])
 def process_document():
     file = request.files.get("document")
-    if file is None or file.filename == "":
-        return render_template("index.html", error="Please choose a file first."), 400
+    direct_text = request.form.get("direct_text", "").strip()
+    has_file = file is not None and file.filename != ""
 
-    if not allowed_file(file.filename):
-        return render_template("index.html", error="Allowed types: PDF, JPG, PNG, BMP, TIFF, WEBP."), 400
+    if has_file and direct_text:
+        return render_template(
+            "index.html",
+            error="Choose either a file or direct text, not both.",
+        ), 400
 
-    language = request.form.get("language", "auto")
-    language_options = {
-        "ar": (["ar"], "Arabic"),
-        "en": (["en"], "English"),
-        "auto": (["auto"], "Auto-detect"),
-        "mixed": (["auto"], "Auto-detect"),
-    }
-    if language not in language_options:
-        return render_template("index.html", error="Choose automatic, Arabic, or English language detection."), 400
-    languages, language_label = language_options[language]
+    if not has_file and not direct_text:
+        return render_template("index.html", error="Choose a file or enter text to analyze."), 400
+
+    if has_file and not allowed_file(file.filename):
+        return render_template("index.html", error="Allowed types: PDF, JPG, PNG, BMP, TIFF, and WEBP."), 400
+
+    languages, language_label = ["en"], "English (locked)"
+
+    processing_mode = request.form.get("processing_mode", "summarize")
+    if processing_mode not in {"summarize", "as_is"}:
+        return render_template("index.html", error="Choose Summarize with AI or Keep Text As-Is."), 400
 
     upload_dir = app.config["UPLOAD_FOLDER"]
     upload_dir.mkdir(parents=True, exist_ok=True)
     cleanup_expired_uploads(upload_dir)
-    suffix = Path(file.filename).suffix.lower()
-    temp_path = upload_dir / f"upload_{uuid.uuid4().hex}{suffix}"
-    file.save(temp_path)
+
+    if has_file:
+        suffix = Path(file.filename).suffix.lower()
+        temp_path = upload_dir / f"upload_{uuid.uuid4().hex}{suffix}"
+        file.save(temp_path)
+        original_filename = file.filename
+    else:
+        suffix = ".txt"
+        temp_path = upload_dir / f"upload_{uuid.uuid4().hex}.txt"
+        original_filename = "Direct text"
+
     job_id = uuid.uuid4().hex
     cleanup_expired_jobs()
     with PROCESSING_JOBS_LOCK:
         PROCESSING_JOBS[job_id] = {
             "stage": "queued",
             "progress": 5,
-            "message": "تم استلام الملف. جاري بدء المعالجة...",
+            "message": "Input received. Starting processing...",
             "created_at": time.time(),
             "updated_at": time.time(),
         }
         worker = threading.Thread(
             target=process_upload_job,
-            args=(job_id, temp_path, file.filename, suffix, languages, language_label),
+            args=(
+                job_id,
+                temp_path,
+                original_filename,
+                suffix,
+                languages,
+                language_label,
+                direct_text,
+                processing_mode,
+            ),
             daemon=True,
         )
         PROCESSING_JOBS[job_id]["worker"] = worker
@@ -545,6 +642,10 @@ def completed_result(job_id: str):
         elif job["stage"] != "complete":
             return render_template("processing.html", job_id=job_id), 202
         else:
+            if job["result"].get("human_approved"):
+                job["result"]["gcode_preview"] = generate_starter_gcode(
+                    job["result"]["reviewed_text"]
+                )
             return render_template("result.html", **job["result"])
     return render_template("index.html", error=f"Processing failed: {error}"), 500
 
@@ -563,8 +664,45 @@ def approve_review(job_id: str):
             abort(404)
         job["result"]["reviewed_text"] = reviewed_text
         job["result"]["human_approved"] = True
+        job["result"]["gcode_preview"] = generate_starter_gcode(reviewed_text)
         job["updated_at"] = time.time()
     return render_template("result.html", **job["result"])
+
+
+@app.route("/download/<job_id>/txt")
+def download_approved_text(job_id: str):
+    with PROCESSING_JOBS_LOCK:
+        job = PROCESSING_JOBS.get(job_id)
+        if job is None or not job["result"].get("human_approved"):
+            abort(404)
+        text = job["result"]["reviewed_text"]
+
+    data = BytesIO(text.encode("utf-8"))
+    data.seek(0)
+    return send_file(
+        data,
+        mimetype="text/plain",
+        as_attachment=True,
+        download_name=f"{job_id}_approved.txt",
+    )
+
+
+@app.route("/download/<job_id>/gcode")
+def download_approved_gcode(job_id: str):
+    with PROCESSING_JOBS_LOCK:
+        job = PROCESSING_JOBS.get(job_id)
+        if job is None or not job["result"].get("human_approved"):
+            abort(404)
+        text = job["result"]["reviewed_text"]
+
+    data = BytesIO(generate_starter_gcode(text).encode("utf-8"))
+    data.seek(0)
+    return send_file(
+        data,
+        mimetype="application/x-gcode",
+        as_attachment=True,
+        download_name=f"{job_id}_approved.gcode",
+    )
 
 
 if __name__ == "__main__":
