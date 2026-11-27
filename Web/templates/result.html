@@ -1,207 +1,522 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b1220">
-    <title>Verification Workspace | CNC Smart Writer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNC Smart Writer — Verification &amp; G-Code</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    <main class="app-shell result-shell">
-        <nav class="topbar" aria-label="Main navigation">
-            <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">CW</span>
-                <span class="brand-name">CNC Smart Writer<span class="brand-light">Document-to-Motion Control Studio</span></span>
-            </a>
-            <a class="text-link" href="/">New source <span aria-hidden="true">↗</span></a>
-        </nav>
+<body data-theme="obsidian" class="min-h-screen flex flex-col antialiased selection:bg-orange-500/30">
+  <header class="sticky top-0 z-40 border-b backdrop-blur-xl" style="border-color: var(--border-hairline); background: var(--bg-card);">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style="background: var(--accent-gradient); color: var(--accent-fg);">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m12 18.5 7.2-7.2L22 4l-7.3 2.8-7.2 7.3-2 7.2 6.5-2.8Z"/>
+            <path d="m14.7 7.1 3.1 3.1M7.5 14.3l4.7 4.7"/>
+            <path d="M3 20.5c.8-1.2 1.8-1.8 3-1.8"/>
+          </svg>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-base sm:text-lg font-bold tracking-tight">CNC Smart Writer</span>
+          <span class="font-mono-tech text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background: var(--accent-soft); color: var(--accent);">English</span>
+        </div>
+      </div>
+      <nav aria-label="Workflow Steps" class="pointer-events-none flex items-center gap-1 p-1 rounded-xl border order-3 sm:order-2 w-full sm:w-auto justify-center" style="border-color: var(--border-hairline); background: var(--bg-input);">
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">01 Input</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">02 Processing</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-semibold" style="background: var(--bg-elevated); color: var(--text-main);" aria-current="step">03 Output</span>
+      </nav>
+      <button type="button" onclick="toggleTheme()" id="theme-toggle-btn" class="order-2 sm:order-3 px-3.5 py-2 rounded-xl text-xs font-semibold btn-ghost flex items-center gap-2 cursor-pointer" title="Switch theme">
+        <span id="theme-icon" class="w-4 h-4 flex items-center justify-center" style="color: var(--accent);"></span>
+        <span id="theme-label">Bento Light</span>
+      </button>
+    </div>
+  </header>
 
-        <header class="result-heading">
-            <div>
-                <p class="eyebrow"><span class="eyebrow-line"></span> VERIFICATION WORKSPACE</p>
-                <h1>Review before output.</h1>
-                <p class="hero-description">Compare the extracted source, make corrections, and approve the text before preparing CNC output.</p>
-            </div>
-            <span class="review-state"><span class="status-dot"></span> {{ "APPROVED" if human_approved else "AWAITING VERIFICATION" }}</span>
-        </header>
+  <main class="flex-1 w-full mx-auto px-4 sm:px-6 py-8 sm:py-12">
+    <section class="w-full max-w-6xl mx-auto space-y-6">
+      <div class="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">Verification &amp; G-Code</h1>
+          <p class="mt-1 text-sm" style="color: var(--text-muted);">Review the text carefully before preparing CNC output.</p>
+        </div>
+        <a href="/" class="px-4 py-2 text-xs font-semibold btn-ghost">New Input</a>
+      </div>
 
-        <section class="review-grid">
-            <aside class="preview-column">
-                <article class="panel source-panel">
-                    <div class="panel-heading">
-                        <div>
-                            <p class="eyebrow">01 / SOURCE</p>
-                            <h2>{% if preview_kind == "text" %}Direct text source{% else %}Original source preview{% endif %}</h2>
-                        </div>
-                        {% if preview_kind != "text" %}
-                        <a class="small-link" href="{{ preview_url }}" target="_blank" rel="noopener">Open source ↗</a>
-                        {% endif %}
-                    </div>
-                    <div class="document-preview">
-                        {% if preview_kind == "text" %}
-                        <div class="text-preview-card">
-                            <span class="file-type">DIRECT TEXT</span>
-                            <p dir="auto">{{ raw_text }}</p>
-                        </div>
-                        {% elif preview_kind == "pdf" %}
-                        <iframe src="{{ preview_url }}" title="Preview of {{ filename }}"></iframe>
-                        {% else %}
-                        <a href="{{ preview_url }}" target="_blank" rel="noopener" class="image-preview-link">
-                            <img src="{{ preview_url }}" alt="Uploaded document: {{ filename }}">
-                        </a>
-                        {% endif %}
-                    </div>
-                    <div class="file-caption">
-                        <span class="file-type">{{ "TEXT" if preview_kind == "text" else ("PDF" if preview_kind == "pdf" else "IMAGE") }}</span>
-                        <span class="file-name" title="{{ filename }}">{{ filename }}</span>
-                    </div>
-                </article>
+      <form id="review-form" class="studio-card p-5 sm:p-7 space-y-5" action="{{ url_for('approve_review', job_id=job_id) }}" method="post">
+        {% if processing_mode == "summarize" %}
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <div class="space-y-2.5">
+            <label for="source-text" class="text-sm font-semibold">{{ "Extracted Text" if input_kind == "file" else "Source Text" }}</label>
+            <textarea id="source-text" readonly class="w-full min-h-[360px] p-4 text-sm leading-relaxed font-mono-tech studio-input resize-y" dir="auto">{{ raw_text }}</textarea>
+          </div>
+          <div class="space-y-2.5">
+            <label for="verified-text-editor" class="text-sm font-semibold">AI Summary</label>
+            <textarea id="verified-text-editor" name="reviewed_text" oninput="handleVerifiedTextChange()" required class="w-full min-h-[360px] p-4 text-sm leading-relaxed font-mono-tech studio-input resize-y" dir="auto">{{ reviewed_text }}</textarea>
+          </div>
+        </div>
+        {% else %}
+        <div class="space-y-2.5">
+          <label for="verified-text-editor" class="text-sm font-semibold">{{ "Extracted Text" if input_kind == "file" else "Source Text" }}</label>
+          <textarea id="verified-text-editor" name="reviewed_text" oninput="handleVerifiedTextChange()" required class="w-full min-h-[360px] p-4 text-sm leading-relaxed font-mono-tech studio-input resize-y" dir="auto">{{ reviewed_text }}</textarea>
+        </div>
+        {% endif %}
 
-                <article class="panel metadata-panel">
-                    <div class="panel-heading compact-heading">
-                        <div><p class="eyebrow">02 / EXTRACTION</p><h2>Source metadata</h2></div>
-                        <span class="metadata-status"><span class="status-dot"></span> READY</span>
-                    </div>
-                    <div class="metadata-grid">
-                        <div class="metadata-item"><span>Source type</span><strong>{{ "Direct text" if preview_kind == "text" else ("PDF document" if preview_kind == "pdf" else "Image file") }}</strong></div>
-                        <div class="metadata-item"><span>Pages</span><strong>{{ page_count }}</strong></div>
-                        {% if preview_kind != "text" %}
-                        <div class="metadata-item"><span>OCR language</span><strong>English</strong></div>
-                        <div class="metadata-item"><span>Extraction engine</span><strong>{{ backend }}</strong></div>
-                        {% endif %}
-                        <div class="metadata-item"><span>Confidence</span>
-                            <strong>
-                                {% if confidence_percent is not none %}{{ confidence_percent }}%{% elif preview_kind == "text" %}100%{% else %}Direct PDF text{% endif %}
-                            </strong>
-                        </div>
-                    </div>
-                    {% if ocr_warning %}
-                    <div class="inline-warning"><strong>Extraction note</strong><span>{{ ocr_warning }}</span></div>
-                    {% endif %}
-                    {% if has_ocr_confidence and preview_kind != "text" %}
-                    <p class="quality-note">OCR confidence is not a guaranteed measure of text accuracy. Verify names, numbers, and all content against the source.</p>
-                    {% endif %}
-                </article>
-            </aside>
+        {% if processing_mode == "summarize" and model_status == "offline" %}
+        <div role="status" class="rounded-xl border p-3.5 text-sm" style="border-color: var(--border-strong); color: var(--text-muted); background: var(--bg-input);">Local AI service (Ollama) is offline — showing extracted text only.</div>
+        {% elif processing_mode == "summarize" and model_status == "skipped" %}
+        <div role="status" class="rounded-xl border p-3.5 text-sm" style="border-color: var(--border-hairline); color: var(--text-muted); background: var(--bg-input);">{{ ai_result }}</div>
+        {% endif %}
 
-            <div class="results-column">
-                {% if processing_mode == "summarize" %}
-                <article class="panel ai-panel">
-                    <div class="section-title">
-                        <span class="section-icon ai-icon" aria-hidden="true">AI</span>
-                        <div><p class="eyebrow">03 / OPTIONAL ASSIST</p><h2>AI summary</h2></div>
-                        <span class="ai-status">{{ "PROCESSING" if model_status == "processing" else ("READY" if model_status == "complete" else ("OFFLINE" if model_status == "offline" else ("SKIPPED" if model_status == "skipped" else ""))) }}</span>
-                    </div>
-                    <p class="ai-copy" id="ai-summary" data-job-id="{{ job_id }}"
-                       data-model-status="{{ model_status }}" aria-live="polite" dir="auto">{{ ai_result }}</p>
-                    <p class="quality-note" id="ai-summary-note"
-                       {% if not model_input_truncated or model_status != "complete" %}hidden{% endif %}>
-                        This summary uses selected excerpts because the source text was long. Use the complete verified text below as the authoritative source.
-                    </p>
-                </article>
-                {% endif %}
+        <label class="flex items-start gap-2.5 text-sm cursor-pointer select-none leading-relaxed" style="color: var(--text-muted);">
+          <input type="checkbox" name="approve" value="yes" id="confirm-verify-checkbox" onchange="onConfirmCheckboxToggle()" {% if human_approved %}checked{% endif %} class="mt-0.5 w-4 h-4 rounded accent-orange-500 cursor-pointer">
+          <span>I have reviewed and verified the text for CNC output.</span>
+        </label>
+        <button type="submit" id="approve-plot-btn" {% if not human_approved %}disabled{% endif %} class="w-full py-3.5 px-5 text-sm btn-accent disabled:opacity-35 disabled:cursor-not-allowed">
+          Approve &amp; Generate G-Code
+        </button>
+      </form>
 
-                {% if human_approved %}
-                <article class="panel export-panel">
-                    <div class="section-title">
-                        <span class="section-icon export-icon" aria-hidden="true">04</span>
-                        <div><p class="eyebrow">04 / APPROVED OUTPUT</p><h2>Export &amp; CNC Output</h2></div>
-                        <span class="approved-badge"><span>✓</span> VERIFIED</span>
-                    </div>
-                    <p class="quality-note">Your approved text is ready. The G-code below is a starter preview with placeholder pen motion; verify machine settings and toolpaths before use.</p>
-                    <div class="export-actions">
-                        <a class="secondary-button" href="{{ url_for('download_approved_text', job_id=job_id) }}"><span aria-hidden="true">↓</span> Approved text <small>.TXT</small></a>
-                        <a class="secondary-button" href="{{ url_for('download_approved_gcode', job_id=job_id) }}"><span aria-hidden="true">↓</span> Starter G-Code <small>.GCODE</small></a>
-                    </div>
-                    <div class="gcode-window">
-                        <div class="gcode-window-bar">
-                            <span class="window-lights" aria-hidden="true"><i></i><i></i><i></i></span>
-                            <span>STARTER-PROGRAM.GCODE</span>
-                            <span class="gcode-live"><span></span> PREVIEW</span>
-                        </div>
-                        <pre class="gcode-preview" aria-label="Generated starter G-code preview"><code id="gcode-code">{{ gcode_preview }}</code></pre>
-                    </div>
-                    <div class="approval-confirmation" role="status">
-                        <strong>Human verification complete.</strong>
-                        <p>Text preparation is approved for the G-Code export pipeline. No machine is activated by this preview.</p>
-                    </div>
-                </article>
-                {% else %}
-                <form class="panel approval-panel" action="{{ url_for('approve_review', job_id=job_id) }}" method="post">
-                    <div class="section-title">
-                        <span class="section-icon verify-icon" aria-hidden="true">03</span>
-                        <div><p class="eyebrow">03 / HUMAN VERIFICATION</p><h2>Verify &amp; edit text</h2></div>
-                    </div>
-                    <p class="quality-note">Correct OCR errors and confirm every line against the original. Approval prepares text for export; it does not execute machine motion.</p>
-                    <label class="reviewed-text-label" for="reviewed-text">Verified source text</label>
-                    <textarea id="reviewed-text" name="reviewed_text" dir="auto" required
-                              aria-label="Verified source text">{{ reviewed_text }}</textarea>
-                    <label class="approval-check">
-                        <input type="checkbox" name="approve" value="yes" required>
-                        <span>I have checked this text against the source and approve it for output preparation.</span>
-                    </label>
-                    <button class="primary-button approval-button" type="submit">
-                        <span>Approve &amp; Prepare Output</span><span class="button-arrow" aria-hidden="true">→</span>
-                    </button>
-                </form>
-                {% endif %}
-            </div>
-        </section>
+      <section class="studio-card p-5 sm:p-7 space-y-5" aria-labelledby="toolpath-heading">
+        <div class="flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <h2 id="toolpath-heading" class="text-lg font-bold tracking-tight">Toolpath Preview</h2>
+          </div>
+          <p id="telemetry-readout" class="font-mono-tech text-xs" style="color: var(--text-muted);" aria-live="polite">X 000.0 mm · Y 000.0 mm</p>
+        </div>
 
-        <footer class="site-footer">
-            <span>CNC SMART WRITER <i>·</i> DOCUMENT-TO-MOTION CONTROL STUDIO</span>
-            <span>Human-verified text preparation &amp; G-Code export pipeline</span>
-        </footer>
-    </main>
-    <script>
-        const aiSummary = document.getElementById("ai-summary");
-        const aiSummaryNote = document.getElementById("ai-summary-note");
-        if (aiSummary && aiSummary.dataset.modelStatus === "processing") {
-            const statusUrl = `/status/${aiSummary.dataset.jobId}`;
-            const pollSummary = async () => {
-                try {
-                    const response = await fetch(statusUrl, {cache: "no-store"});
-                    if (!response.ok) throw new Error("Could not refresh the AI summary status.");
-                    const state = await response.json();
-                    if (["complete", "error", "offline", "skipped"].includes(state.model_status)) {
-                        aiSummary.textContent = state.ai_result;
-                        aiSummary.dataset.modelStatus = state.model_status;
-                        aiSummaryNote.hidden = !(
-                            state.model_status === "complete"
-                            && state.model_input_truncated
-                        );
-                        return;
-                    }
-                } catch (error) {
-                    console.warn("Could not refresh the AI summary status.", error);
-                }
-                window.setTimeout(pollSummary, 2500);
-            };
-            window.setTimeout(pollSummary, 1000);
+        <div id="workbed-container" class="relative w-full rounded-2xl overflow-y-auto overflow-x-hidden border" style="max-height: 520px; border-color: var(--border-hairline); background: var(--canvas-bg);">
+          <canvas id="cnc-workbed-canvas" class="block w-full" aria-label="A4 CNC workbed grid and text toolpath preview"></canvas>
+        </div>
+
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" onclick="openGcodeModal()" id="inspect-gcode-btn" class="px-3.5 py-2 text-xs font-semibold btn-ghost">
+              Inspect G-Code
+            </button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2">
+            <button type="button" id="download-txt-btn" {% if not human_approved %}disabled{% endif %} onclick="downloadOutputFile('txt')" class="px-4 py-2.5 text-xs font-semibold btn-ghost disabled:opacity-35 disabled:cursor-not-allowed">Download .TXT</button>
+            <button type="button" id="download-gcode-btn" {% if not human_approved %}disabled{% endif %} onclick="downloadOutputFile('gcode')" class="px-4 py-2.5 text-xs font-semibold btn-accent disabled:opacity-35 disabled:cursor-not-allowed">Download .GCODE</button>
+          </div>
+        </div>
+
+        {% if not human_approved %}
+        <p id="export-lock-message" class="text-xs" style="color: var(--text-muted);">Approve the verified text above to enable downloads.</p>
+        {% endif %}
+      </section>
+    </section>
+  </main>
+
+  <dialog id="gcode-modal" class="gcode-modal" aria-labelledby="gcode-modal-title" aria-describedby="gcode-modal-description">
+    <div class="p-5 sm:p-7 space-y-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="gcode-modal-title" class="text-lg font-bold tracking-tight">Generated G-Code</h2>
+          <p id="gcode-modal-description" class="mt-1 text-xs" style="color: var(--text-muted);">Starter pen-plotter commands for the current text.</p>
+        </div>
+        <span class="font-mono-tech text-[10px] px-2 py-1 rounded-md" style="background: var(--accent-soft); color: var(--accent);">G21 · G90</span>
+      </div>
+      <pre class="gcode-modal-code p-4 font-mono-tech text-xs leading-relaxed"><code id="gcode-modal-content">{{ gcode_preview }}</code></pre>
+      <p id="gcode-copy-status" class="min-h-4 text-xs" aria-live="polite" style="color: var(--text-muted);"></p>
+      <div class="flex justify-end gap-2">
+        <button type="button" onclick="closeGcodeModal()" class="px-4 py-2.5 text-xs font-semibold btn-ghost">Close</button>
+        <button type="button" id="copy-gcode-btn" onclick="copyGcode()" class="px-4 py-2.5 text-xs font-semibold btn-accent">Copy G-Code</button>
+      </div>
+    </div>
+  </dialog>
+
+  <script>
+    const body = document.body;
+    const sunIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>';
+    const moonIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>';
+    let currentTheme = localStorage.getItem("cnc-smart-writer-theme") || "obsidian";
+    if (!["obsidian", "bento"].includes(currentTheme)) currentTheme = "obsidian";
+
+    const A4_WIDTH_MM = 210;
+    const A4_HEIGHT_MM = 297;
+    const MARGIN_X_MM = 12;
+    const MAX_X_MM = 198;
+    const START_Y_MM = 16;
+    const END_Y_MM = 282;
+    const LINE_STEP_MM = 10.5;
+    const PAGE_GAP_PX = 24;
+
+    function setTheme(theme) {
+      currentTheme = theme;
+      body.setAttribute("data-theme", theme);
+      document.getElementById("theme-label").textContent = theme === "obsidian" ? "Bento Light" : "Obsidian Dark";
+      document.getElementById("theme-icon").innerHTML = theme === "obsidian" ? sunIcon : moonIcon;
+      localStorage.setItem("cnc-smart-writer-theme", theme);
+    }
+
+    function toggleTheme() {
+      setTheme(currentTheme === "obsidian" ? "bento" : "obsidian");
+      resizeWorkbedCanvas();
+      drawWorkbedCanvas(plotProgress);
+    }
+
+    const jobId = {{ job_id|tojson }};
+    const approved = {{ human_approved|tojson }};
+    const textEditor = document.getElementById("verified-text-editor");
+    const confirmation = document.getElementById("confirm-verify-checkbox");
+    const approveButton = document.getElementById("approve-plot-btn");
+    const downloadTextButton = document.getElementById("download-txt-btn");
+    const downloadGcodeButton = document.getElementById("download-gcode-btn");
+    const gcodeModal = document.getElementById("gcode-modal");
+    const gcodeModalContent = document.getElementById("gcode-modal-content");
+    const gcodeCopyStatus = document.getElementById("gcode-copy-status");
+    const copyGcodeButton = document.getElementById("copy-gcode-btn");
+    let isApproved = approved;
+    let plotProgress = 1;
+    let plotAnimFrame = null;
+
+    function onConfirmCheckboxToggle() {
+      approveButton.disabled = !confirmation.checked || !textEditor.value.trim();
+      downloadTextButton.disabled = !isApproved || !confirmation.checked;
+      downloadGcodeButton.disabled = !isApproved || !confirmation.checked;
+    }
+
+    function handleVerifiedTextChange() {
+      updateGcodePreview();
+      if (isApproved) {
+        isApproved = false;
+        confirmation.checked = false;
+        downloadTextButton.disabled = true;
+        downloadGcodeButton.disabled = true;
+        document.getElementById("export-lock-message")?.classList.remove("hidden");
+      }
+      onConfirmCheckboxToggle();
+      resizeWorkbedCanvas();
+      drawWorkbedCanvas(1);
+    }
+
+    function openGcodeModal() {
+      gcodeCopyStatus.textContent = "";
+      copyGcodeButton.textContent = "Copy G-Code";
+      gcodeModal.showModal();
+    }
+
+    function closeGcodeModal() {
+      gcodeModal.close();
+    }
+
+    function showCopiedFeedback() {
+      copyGcodeButton.textContent = "Copied";
+      gcodeCopyStatus.textContent = "G-Code copied to the clipboard.";
+    }
+
+    async function copyGcode() {
+      const code = gcodeModalContent.textContent;
+      try {
+        await navigator.clipboard.writeText(code);
+        showCopiedFeedback();
+      } catch {
+        const copyField = document.createElement("textarea");
+        copyField.value = code;
+        copyField.setAttribute("readonly", "");
+        copyField.style.position = "fixed";
+        copyField.style.opacity = "0";
+        document.body.appendChild(copyField);
+        let copied = false;
+        try {
+          copyField.select();
+          copied = document.execCommand("copy");
+        } catch {
+          copied = false;
+        } finally {
+          copyField.remove();
+        }
+        if (copied) {
+          showCopiedFeedback();
+        } else {
+          gcodeCopyStatus.textContent = "Copy was blocked. Select the G-Code above and copy it manually.";
+        }
+      }
+    }
+
+    function getWrappedLines(ctx, scale) {
+      const rawLines = textEditor.value.split("\n").map(line => line.trim()).filter(Boolean);
+      const maxWidthPx = (MAX_X_MM - MARGIN_X_MM) * scale;
+      const wrapped = [];
+
+      rawLines.forEach(line => {
+        const words = line.split(/\s+/);
+        let currentLine = "";
+
+        words.forEach(word => {
+          const candidate = currentLine ? `${currentLine} ${word}` : word;
+          if (ctx.measureText(candidate).width <= maxWidthPx || !currentLine) {
+            currentLine = candidate;
+          } else {
+            wrapped.push(currentLine);
+            currentLine = word;
+          }
+        });
+
+        if (currentLine) {
+          wrapped.push(currentLine);
+        }
+      });
+
+      return wrapped;
+    }
+
+    function buildPaginatedItems(ctx, scale) {
+      const lines = getWrappedLines(ctx, scale);
+      const maxRowsPerPage = Math.max(1, Math.floor((END_Y_MM - START_Y_MM) / LINE_STEP_MM) + 1);
+      const items = [];
+
+      lines.forEach((line, idx) => {
+        const pageIndex = Math.floor(idx / maxRowsPerPage);
+        const rowOnPage = idx % maxRowsPerPage;
+        const yMm = START_Y_MM + rowOnPage * LINE_STEP_MM;
+        items.push({ line, pageIndex, rowOnPage, yMm });
+      });
+
+      const pageCount = Math.max(1, Math.ceil(lines.length / maxRowsPerPage));
+      return { items, pageCount };
+    }
+
+    function updateGcodePreview() {
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      const scale = 3.2;
+      tempCtx.font = `600 ${Math.max(10, scale * 4.2)}px "JetBrains Mono", monospace`;
+      const { items } = buildPaginatedItems(tempCtx, scale);
+
+      const gcodeLines = [
+        "; CNC Smart Writer — Starter Pen Plotter Program",
+        "; Human-verified text preparation (motion placeholders)",
+        "G21 ; Set units to millimeters",
+        "G90 ; Absolute positioning",
+        "G00 Z5.0 ; Pen UP (safe clearance)",
+        ""
+      ];
+      items.forEach(({ line, pageIndex, yMm }, index) => {
+        const xEnd = Math.min(MAX_X_MM, MARGIN_X_MM + line.length * 4.8).toFixed(1);
+        gcodeLines.push(`; Page ${pageIndex + 1} · Line ${index + 1}: ${line}`);
+        gcodeLines.push(`G00 X${MARGIN_X_MM.toFixed(1)} Y${yMm.toFixed(1)}`);
+        gcodeLines.push("G01 Z0.0 F600 ; Pen DOWN");
+        gcodeLines.push(`G01 X${xEnd} Y${yMm.toFixed(1)} F1200`);
+        gcodeLines.push("G00 Z5.0 ; Pen UP");
+        gcodeLines.push("");
+      });
+      gcodeLines.push("G00 X0.0 Y0.0 ; Return to origin", "M30 ; End program");
+      gcodeModalContent.textContent = gcodeLines.join("\n");
+    }
+
+    function getLayoutMetrics() {
+      const container = document.getElementById("workbed-container");
+      const rect = container.getBoundingClientRect();
+      const scrollbarAllowance = 22;
+      const leftPad = 14;
+      const rightPad = 14 + scrollbarAllowance;
+      const containerWidth = Math.max(280, rect.width || container.clientWidth || 800);
+      const usableWidth = Math.max(180, containerWidth - leftPad - rightPad);
+      const bedWidth = usableWidth;
+      const scale = bedWidth / A4_WIDTH_MM;
+      const bedHeight = A4_HEIGHT_MM * scale;
+      const bedX = leftPad;
+
+      const tempCanvas = document.createElement("canvas");
+      const tempCtx = tempCanvas.getContext("2d");
+      const fontPx = Math.max(9, Math.min(16, scale * 3.4));
+      tempCtx.font = `600 ${fontPx}px "JetBrains Mono", monospace`;
+      const { items, pageCount } = buildPaginatedItems(tempCtx, scale);
+
+      const topPad = 14;
+      const bottomPad = 16;
+      const contentHeight = pageCount * bedHeight + (pageCount - 1) * PAGE_GAP_PX + topPad + bottomPad;
+      const totalHeight = Math.max(460, contentHeight);
+
+      return {
+        containerWidth,
+        totalHeight,
+        bedWidth,
+        bedHeight,
+        bedX,
+        topPad,
+        scale,
+        fontPx,
+        items,
+        pageCount
+      };
+    }
+
+    function resizeWorkbedCanvas() {
+      const canvas = document.getElementById("cnc-workbed-canvas");
+      const { containerWidth, totalHeight } = getLayoutMetrics();
+      const dpr = window.devicePixelRatio || 1;
+      canvas.style.width = `${containerWidth}px`;
+      canvas.style.height = `${totalHeight}px`;
+      canvas.width = Math.round(containerWidth * dpr);
+      canvas.height = Math.round(totalHeight * dpr);
+      canvas.getContext("2d").setTransform(dpr, 0, 0, dpr, 0, 0);
+    }
+
+    function animateToolpath() {
+      cancelAnimationFrame(plotAnimFrame);
+      plotProgress = 0;
+      const startTime = performance.now();
+      const durationMs = 2100;
+      function step(now) {
+        plotProgress = Math.min(1, (now - startTime) / durationMs);
+        drawWorkbedCanvas(plotProgress);
+        if (plotProgress < 1) plotAnimFrame = requestAnimationFrame(step);
+      }
+      plotAnimFrame = requestAnimationFrame(step);
+    }
+
+    function drawWorkbedCanvas(progress) {
+      const canvas = document.getElementById("cnc-workbed-canvas");
+      const {
+        containerWidth,
+        totalHeight,
+        bedWidth,
+        bedHeight,
+        bedX,
+        topPad,
+        scale,
+        fontPx,
+        items,
+        pageCount
+      } = getLayoutMetrics();
+      if (!containerWidth || !totalHeight) return;
+
+      const ctx = canvas.getContext("2d");
+      const styles = getComputedStyle(body);
+      const gridColor = styles.getPropertyValue("--canvas-grid").trim();
+      const inkColor = styles.getPropertyValue("--canvas-ink").trim();
+      const dimColor = styles.getPropertyValue("--text-dim").trim();
+      const paperColor = styles.getPropertyValue("--canvas-paper").trim();
+      const borderColor = styles.getPropertyValue("--canvas-border").trim();
+
+      ctx.clearRect(0, 0, containerWidth, totalHeight);
+
+      const getPageTopY = (pageIdx) => topPad + pageIdx * (bedHeight + PAGE_GAP_PX);
+
+      for (let p = 0; p < pageCount; p++) {
+        const bedY = getPageTopY(p);
+
+        ctx.fillStyle = paperColor;
+        ctx.fillRect(bedX, bedY, bedWidth, bedHeight);
+        ctx.strokeStyle = borderColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(bedX, bedY, bedWidth, bedHeight);
+
+        ctx.strokeStyle = gridColor;
+        for (let xMm = 10; xMm < A4_WIDTH_MM; xMm += 10) {
+          const x = bedX + xMm * scale;
+          ctx.lineWidth = xMm % 50 === 0 ? 1 : 0.6;
+          ctx.beginPath();
+          ctx.moveTo(x, bedY);
+          ctx.lineTo(x, bedY + bedHeight);
+          ctx.stroke();
+        }
+        for (let yMm = 10; yMm < A4_HEIGHT_MM; yMm += 10) {
+          const y = bedY + yMm * scale;
+          ctx.lineWidth = yMm % 50 === 0 ? 1 : 0.6;
+          ctx.beginPath();
+          ctx.moveTo(bedX, y);
+          ctx.lineTo(bedX + bedWidth, y);
+          ctx.stroke();
         }
 
-        const gcodeCode = document.getElementById("gcode-code");
-        if (gcodeCode) {
-            const source = gcodeCode.textContent;
-            const tokenPattern = /;.*|(?:G|M)\d+|[XYZF][-+]?\d*\.?\d+/g;
-            gcodeCode.replaceChildren();
-            source.split("\n").forEach((line, lineIndex, lines) => {
-                let cursor = 0;
-                for (const match of line.matchAll(tokenPattern)) {
-                    gcodeCode.append(document.createTextNode(line.slice(cursor, match.index)));
-                    const token = document.createElement("span");
-                    token.className = match[0].startsWith(";")
-                        ? "gcode-comment"
-                        : (/^(G|M)/.test(match[0]) ? "gcode-command" : "gcode-coordinate");
-                    token.textContent = match[0];
-                    gcodeCode.append(token);
-                    cursor = match.index + match[0].length;
-                }
-                gcodeCode.append(document.createTextNode(line.slice(cursor)));
-                if (lineIndex < lines.length - 1) gcodeCode.append(document.createTextNode("\n"));
-            });
+        ctx.strokeStyle = inkColor;
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(bedX - 5, bedY);
+        ctx.lineTo(bedX + 10, bedY);
+        ctx.moveTo(bedX, bedY - 5);
+        ctx.lineTo(bedX, bedY + 10);
+        ctx.stroke();
+
+        ctx.fillStyle = dimColor;
+        ctx.font = '600 10px "JetBrains Mono", monospace';
+        ctx.fillText(`P${p + 1} · X0 Y0`, bedX + 8, bedY + 12);
+      }
+
+      const totalChars = items.reduce((sum, item) => sum + item.line.length, 0);
+      let charBudget = Math.floor(totalChars * progress);
+      let headX = bedX + MARGIN_X_MM * scale;
+      let headY = getPageTopY(0) + START_Y_MM * scale;
+      let activePageIdx = 0;
+
+      ctx.font = `600 ${fontPx}px "JetBrains Mono", monospace`;
+
+      items.forEach(({ line, pageIndex, yMm }) => {
+        const pageTopY = getPageTopY(pageIndex);
+        const yPos = pageTopY + yMm * scale;
+        const xStart = bedX + MARGIN_X_MM * scale;
+        const maxLinePx = (MAX_X_MM - MARGIN_X_MM) * scale;
+        const measuredWidth = Math.min(maxLinePx, ctx.measureText(line).width);
+        const lineEnd = xStart + measuredWidth;
+
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(bedX, pageTopY, bedWidth, bedHeight);
+        ctx.clip();
+
+        ctx.strokeStyle = gridColor;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(xStart, yPos + 3);
+        ctx.lineTo(lineEnd, yPos + 3);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        if (charBudget > 0) {
+          const visibleText = line.slice(0, Math.min(line.length, charBudget));
+          ctx.fillStyle = inkColor;
+          ctx.fillText(visibleText, xStart, yPos, maxLinePx);
+          headX = Math.min(bedX + MAX_X_MM * scale, xStart + ctx.measureText(visibleText).width + 2);
+          headY = yPos - 3;
+          activePageIdx = pageIndex;
+          charBudget -= visibleText.length;
         }
-    </script>
+
+        ctx.restore();
+      });
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.arc(headX, headY, 5.5, 0, Math.PI * 2);
+      ctx.fillStyle = inkColor;
+      ctx.shadowColor = inkColor;
+      ctx.shadowBlur = 14;
+      ctx.fill();
+      ctx.beginPath();
+      ctx.arc(headX, headY, 2, 0, Math.PI * 2);
+      ctx.fillStyle = "#FFFFFF";
+      ctx.fill();
+      ctx.restore();
+
+      const activePageTopY = getPageTopY(activePageIdx);
+      const mmX = Math.max(0, (headX - bedX) / scale).toFixed(1);
+      const mmY = Math.max(0, (headY - activePageTopY) / scale).toFixed(1);
+      document.getElementById("telemetry-readout").textContent = `P${activePageIdx + 1} · X ${mmX} mm · Y ${mmY} mm`;
+    }
+
+    function downloadOutputFile(ext) {
+      if (!isApproved || !confirmation.checked) return;
+      window.location.assign(`/download/${jobId}/${ext}`);
+    }
+
+    setTheme(currentTheme);
+    if (!approved) onConfirmCheckboxToggle();
+    window.addEventListener("resize", () => {
+      resizeWorkbedCanvas();
+      drawWorkbedCanvas(plotProgress);
+    });
+    updateGcodePreview();
+    resizeWorkbedCanvas();
+    animateToolpath();
+  </script>
 </body>
 </html>

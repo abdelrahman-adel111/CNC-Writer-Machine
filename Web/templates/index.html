@@ -1,218 +1,264 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b1220">
-    <title>CNC Smart Writer | Document-to-Motion Control Studio</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNC Smart Writer — Document-to-Motion Control Studio</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    <main class="app-shell">
-        <nav class="topbar" aria-label="Main navigation">
-            <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">CW</span>
-                <span class="brand-name">CNC Smart Writer<span class="brand-light">Document-to-Motion Control Studio</span></span>
-            </a>
-            <span class="topbar-status"><span class="status-dot"></span> LOCAL WORKSPACE</span>
-        </nav>
+<body data-theme="obsidian" class="min-h-screen flex flex-col antialiased selection:bg-orange-500/30">
+  <header class="sticky top-0 z-40 border-b backdrop-blur-xl" style="border-color: var(--border-hairline); background: var(--bg-card);">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-md transition-transform group-hover:scale-105" style="background: var(--accent-gradient); color: var(--accent-fg);">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m12 18.5 7.2-7.2L22 4l-7.3 2.8-7.2 7.3-2 7.2 6.5-2.8Z"/>
+            <path d="m14.7 7.1 3.1 3.1M7.5 14.3l4.7 4.7"/>
+            <path d="M3 20.5c.8-1.2 1.8-1.8 3-1.8"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="text-base sm:text-lg font-bold tracking-tight">CNC Smart Writer</span>
+            <span class="font-mono-tech text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background: var(--accent-soft); color: var(--accent);">English</span>
+          </div>
+        </div>
+      </div>
+      <nav aria-label="Workflow Steps" class="pointer-events-none flex items-center gap-1 p-1 rounded-xl border order-3 sm:order-2 w-full sm:w-auto justify-center" style="border-color: var(--border-hairline); background: var(--bg-input);">
+        <span class="px-3 py-1.5 rounded-lg text-xs font-semibold" style="background: var(--bg-elevated); color: var(--text-main); box-shadow: 0 2px 6px rgba(0,0,0,0.12);" aria-current="step">01 Input</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">02 Processing</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">03 Output</span>
+      </nav>
+      <button type="button" onclick="toggleTheme()" id="theme-toggle-btn" class="order-2 sm:order-3 px-3.5 py-2 rounded-xl text-xs font-semibold btn-ghost flex items-center gap-2 cursor-pointer" title="Switch Theme">
+        <span id="theme-icon" class="w-4 h-4 flex items-center justify-center" style="color: var(--accent);"></span>
+        <span id="theme-label">Bento Light</span>
+      </button>
+    </div>
+  </header>
 
-        <section class="hero">
-            <div class="hero-copy">
-                <p class="eyebrow"><span class="eyebrow-line"></span> DOCUMENT-TO-MOTION WORKFLOW</p>
-                <h1>From source text<br>to <span>verified output.</span></h1>
-                <p class="hero-description">
-                    Extract or enter English text, verify every line, then prepare a starter G-code file for your CNC writing workflow.
-                </p>
-                <div class="workflow-strip" aria-label="Workflow stages">
-                    <span><b>01</b> Input</span><i></i><span><b>02</b> Extract</span><i></i><span><b>03</b> Verify</span><i></i><span><b>04</b> Export</span>
-                </div>
-                <div class="engineering-note">
-                    <span class="note-icon" aria-hidden="true">⌁</span>
-                    <p><strong>Human-verified text preparation</strong><br>G-code export pipeline with placeholder motion only.</p>
-                </div>
+  <main class="flex-1 w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
+    <section id="screen-1" class="w-full max-w-[680px] mx-auto space-y-7 my-auto">
+      <div class="text-center space-y-2.5">
+        <h1 class="text-3xl sm:text-4xl font-bold tracking-tight">Prepare text for precise motion.</h1>
+        <p class="text-sm sm:text-base max-w-lg mx-auto" style="color: var(--text-muted);">Convert a document or text into reviewed plotter G-Code.</p>
+      </div>
+
+      <form class="studio-card p-6 sm:p-8 space-y-6" action="{{ url_for('process_document') }}" method="post" enctype="multipart/form-data" id="input-form">
+        <div class="tab-track grid grid-cols-2 gap-1">
+          <input type="hidden" name="language" value="en">
+          <button type="button" id="tab-file" onclick="switchInputTab('file')" class="tab-item active py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer" aria-selected="true">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-8l-4-4m0 0L8 8m4-4v12"/></svg>
+            <span>Upload File / Image</span>
+          </button>
+          <button type="button" id="tab-text" onclick="switchInputTab('text')" class="tab-item py-2.5 px-4 text-xs font-semibold flex items-center justify-center gap-2 cursor-pointer" aria-selected="false">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
+            <span>Direct Text Input</span>
+          </button>
+        </div>
+
+        <div id="panel-file" class="space-y-3">
+          <input type="file" id="hidden-file-input" name="document" class="hidden" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg">
+          <div id="drop-area" role="button" tabindex="0" aria-label="Choose a PDF or image or drop it here" class="group cursor-pointer rounded-2xl border border-dashed p-9 text-center transition-all" style="border-color: var(--border-strong); background: var(--bg-input);">
+            <div class="w-11 h-11 rounded-xl mx-auto mb-3 flex items-center justify-center transition-transform group-hover:scale-105" style="background: var(--accent-soft); color: var(--accent);">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"/></svg>
             </div>
+            <p class="text-sm font-medium">Drop a document or image here, or <span style="color: var(--accent);" class="underline underline-offset-4">select a file</span></p>
+            <p class="font-mono-tech text-[11px] mt-1.5" style="color: var(--text-dim);">PDF, DOCX, TXT, PNG, JPG • MAX 16 MB</p>
+          </div>
 
-            <section class="workbench panel" aria-labelledby="input-title">
-                <div class="workbench-heading">
-                    <div class="workbench-title">
-                        <span class="step-number">01</span>
-                        <div>
-                            <p class="eyebrow">INPUT STATION</p>
-                            <h2 id="input-title">Prepare your source</h2>
-                        </div>
-                    </div>
-                    <span class="limit-badge">MAX 16 MB</span>
-                </div>
+          <div id="file-validation-error" role="alert" class="hidden rounded-xl border p-3.5 text-xs" style="border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.08);"></div>
+          <div id="selected-file-bar" class="hidden p-3.5 studio-panel flex items-center justify-between gap-3" aria-live="polite">
+            <div class="flex items-center gap-3 min-w-0">
+              <div class="w-9 h-9 rounded-lg flex items-center justify-center font-mono-tech text-xs font-bold shrink-0" style="background: var(--accent-soft); color: var(--accent);">DOC</div>
+              <div class="truncate">
+                <div id="file-name-label" class="text-xs font-semibold truncate"></div>
+                <div id="file-size-label" class="mt-1 w-fit px-2 py-0.5 rounded-md studio-panel font-mono-tech text-[11px]" style="color: var(--text-muted);"></div>
+              </div>
+            </div>
+            <button type="button" onclick="clearAllInputs()" class="px-3 py-1.5 text-xs font-semibold btn-ghost shrink-0 cursor-pointer" title="Remove file">Clear ×</button>
+          </div>
+        </div>
 
-                {% if error %}
-                <div class="alert" role="alert">{{ error }}</div>
-                {% endif %}
+        <div id="panel-text" class="hidden space-y-2">
+          <div class="flex items-center justify-end">
+            <div class="flex items-center gap-3">
+              <span id="live-char-count" class="font-mono-tech text-[11px]" style="color: var(--text-dim);">0 characters</span>
+              <button type="button" id="clear-text-btn" onclick="clearAllInputs()" class="hidden px-2.5 py-1 text-xs font-semibold btn-ghost cursor-pointer">Clear ×</button>
+            </div>
+          </div>
+          <textarea id="direct-text-input" name="direct_text" rows="5" aria-label="Direct text input" placeholder="Type or paste the text you want to prepare for CNC output..." class="w-full p-4 text-sm font-mono-tech studio-input resize-none"></textarea>
+        </div>
 
-                <form action="/process" method="post" enctype="multipart/form-data" class="upload-form" id="input-form">
-                    <input type="hidden" name="language" value="en">
-                    <div class="input-tabs" role="tablist" aria-label="Choose one input source">
-                        <button class="input-tab is-selected" id="upload-tab" type="button" role="tab"
-                                aria-selected="true" aria-controls="upload-panel">Upload File / Image</button>
-                        <button class="input-tab" id="text-tab" type="button" role="tab"
-                                aria-selected="false" aria-controls="text-panel">Direct Text Input</button>
-                    </div>
+        {% if error %}
+        <div role="alert" class="rounded-xl border p-3.5 text-xs" style="border-color: var(--accent); color: var(--accent); background: var(--accent-soft);">{{ error }}</div>
+        {% endif %}
 
-                    <div class="input-panel" id="upload-panel" role="tabpanel" aria-labelledby="upload-tab">
-                        <label for="document" class="upload-box" id="upload-box">
-                            <span class="upload-icon" aria-hidden="true">↑</span>
-                            <span class="upload-label">Drop a source file here</span>
-                            <span class="upload-hint">or browse your device</span>
-                            <span class="format-hint">PDF · PNG · JPG · TIFF · BMP · WEBP</span>
-                            <input id="document" type="file" name="document"
-                                   accept=".pdf,.png,.jpg,.jpeg,.bmp,.tif,.tiff,.webp">
-                        </label>
-                        <div class="selected-source" id="selected-file-row" hidden>
-                            <span class="source-type" aria-hidden="true">FILE</span>
-                            <span class="selected-file" id="selected-file"></span>
-                            <span class="file-size" id="file-size"></span>
-                            <button class="clear-input" id="clear-file" type="button" aria-label="Clear selected file">×</button>
-                        </div>
-                    </div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <label class="p-3.5 studio-panel cursor-pointer flex items-center gap-3">
+            <input type="radio" name="processing_mode" value="as_is" checked class="accent-orange-500 w-4 h-4">
+            <div>
+              <div class="text-xs font-semibold">Keep Text As-Is</div>
+            </div>
+          </label>
+          <label class="p-3.5 studio-panel cursor-pointer flex items-center gap-3">
+            <input type="radio" name="processing_mode" value="summarize" class="accent-orange-500 w-4 h-4">
+            <div>
+              <div class="text-xs font-semibold">Summarize</div>
+            </div>
+          </label>
+        </div>
 
-                    <div class="input-panel" id="text-panel" role="tabpanel" aria-labelledby="text-tab" hidden>
-                        <label class="text-input-group" for="direct_text">
-                            <span class="field-label">Text source <span>ENGLISH OCR / TEXT PIPELINE</span></span>
-                            <textarea id="direct_text" name="direct_text"
-                                      placeholder="Type or paste the text you want to prepare..." rows="8"></textarea>
-                        </label>
-                        <div class="selected-source" id="selected-text-row" hidden>
-                            <span class="source-type text-type" aria-hidden="true">TEXT</span>
-                            <span class="selected-file" id="text-character-count">0 characters</span>
-                            <button class="clear-input" id="clear-text" type="button" aria-label="Clear entered text">×</button>
-                        </div>
-                    </div>
+        <button type="submit" id="analyze-btn" disabled class="w-full py-3.5 px-6 text-sm btn-accent flex items-center justify-center gap-2 cursor-pointer">
+          <span>Processing</span>
+          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+        </button>
+      </form>
+    </section>
+  </main>
 
-                    <label class="mode-field" for="processing_mode">
-                        <span class="field-label">Processing mode <span>OPTIONAL AI ASSIST</span></span>
-                        <select id="processing_mode" name="processing_mode">
-                            <option value="summarize" selected>Summarize with AI</option>
-                            <option value="as_is">Keep Text As-Is (No Summary)</option>
-                        </select>
-                    </label>
+  <script>
+    const body = document.body;
+    const sunIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>';
+    const moonIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>';
+    let currentTheme = localStorage.getItem("cnc-smart-writer-theme") || "obsidian";
+    if (!["obsidian", "bento"].includes(currentTheme)) currentTheme = "obsidian";
 
-                    <button type="submit" class="primary-button" id="submit-button" disabled>
-                        <span>Analyze Document</span><span class="button-arrow" aria-hidden="true">→</span>
-                    </button>
-                    <p class="form-footnote"><span class="status-dot"></span> English-only text processing · local review · human approval required before export</p>
-                </form>
-            </section>
-        </section>
+    function setTheme(theme) {
+      currentTheme = theme;
+      body.setAttribute("data-theme", theme);
+      document.getElementById("theme-label").textContent = theme === "obsidian" ? "Bento Light" : "Obsidian Dark";
+      document.getElementById("theme-icon").innerHTML = theme === "obsidian" ? sunIcon : moonIcon;
+      localStorage.setItem("cnc-smart-writer-theme", theme);
+    }
 
-        <section class="feature-row" aria-label="CNC Smart Writer workflow">
-            <article class="feature-item"><span class="feature-index">01</span><div><h3>Extract precisely</h3><p>Read text from document images and PDFs.</p></div></article>
-            <article class="feature-item"><span class="feature-index">02</span><div><h3>Verify before motion</h3><p>Edit the recognized content before approving.</p></div></article>
-            <article class="feature-item"><span class="feature-index">03</span><div><h3>Prepare CNC output</h3><p>Export approved text and starter G-code.</p></div></article>
-        </section>
+    function toggleTheme() {
+      setTheme(currentTheme === "obsidian" ? "bento" : "obsidian");
+    }
 
-        <footer class="site-footer">
-            <span>CNC SMART WRITER <i>·</i> DOCUMENT-TO-MOTION CONTROL STUDIO</span>
-            <span>Human-verified text preparation &amp; G-Code export pipeline</span>
-        </footer>
-    </main>
-    <script>
-        const fileInput = document.getElementById("document");
-        const selectedFile = document.getElementById("selected-file");
-        const fileSize = document.getElementById("file-size");
-        const fileRow = document.getElementById("selected-file-row");
-        const textRow = document.getElementById("selected-text-row");
-        const uploadBox = document.getElementById("upload-box");
-        const directText = document.getElementById("direct_text");
-        const submitButton = document.getElementById("submit-button");
-        const uploadTab = document.getElementById("upload-tab");
-        const textTab = document.getElementById("text-tab");
-        const uploadPanel = document.getElementById("upload-panel");
-        const textPanel = document.getElementById("text-panel");
-        const allowedExtensions = /\.(pdf|png|jpe?g|bmp|tiff?|webp)$/i;
-        let activeInput = "file";
+    setTheme(currentTheme);
 
-        function isValidSelectedFile() {
-            if (!fileInput.files.length) return false;
-            const file = fileInput.files[0];
-            return allowedExtensions.test(file.name) && file.size <= 16 * 1024 * 1024;
-        }
+    const fileInput = document.getElementById("hidden-file-input");
+    const textInput = document.getElementById("direct-text-input");
+    const analyzeButton = document.getElementById("analyze-btn");
+    const fileError = document.getElementById("file-validation-error");
+    function clearAllInputs() {
+      fileInput.value = "";
+      textInput.value = "";
+      document.getElementById("selected-file-bar").classList.add("hidden");
+      fileError.classList.add("hidden");
+      fileError.textContent = "";
+      document.getElementById("live-char-count").textContent = "0 characters";
+      document.getElementById("clear-text-btn").classList.add("hidden");
+      analyzeButton.disabled = true;
+    }
 
-        function formatFileSize(bytes) {
-            return bytes < 1024 * 1024
-                ? `${Math.max(1, Math.round(bytes / 1024))} KB`
-                : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
-        }
+    function switchInputTab(tabName) {
+      clearAllInputs();
+      document.getElementById("tab-file").classList.toggle("active", tabName === "file");
+      document.getElementById("tab-text").classList.toggle("active", tabName === "text");
+      document.getElementById("tab-file").setAttribute("aria-selected", String(tabName === "file"));
+      document.getElementById("tab-text").setAttribute("aria-selected", String(tabName === "text"));
+      document.getElementById("panel-file").classList.toggle("hidden", tabName !== "file");
+      document.getElementById("panel-text").classList.toggle("hidden", tabName !== "text");
+    }
 
-        function updateSubmitState() {
-            submitButton.disabled = activeInput === "file"
-                ? !isValidSelectedFile()
-                : directText.value.trim().length === 0;
-        }
+    function formatFileSize(bytes) {
+      if (bytes === 0) return "0 B";
+      return bytes < 1024 * 1024
+        ? `${Math.max(1, Math.round(bytes / 1024))} KB`
+        : `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
 
-        function showFileState() {
-            const hasFile = fileInput.files.length > 0;
-            fileRow.hidden = !hasFile;
-            uploadBox.classList.toggle("has-file", hasFile);
-            if (hasFile) {
-                selectedFile.textContent = fileInput.files[0].name;
-                fileSize.textContent = formatFileSize(fileInput.files[0].size);
-            }
-            updateSubmitState();
-        }
+    function validateFile(file) {
+      if (file.size > 16 * 1024 * 1024) {
+        return "File rejected: the maximum file size is 16 MB.";
+      }
+      if (file.size === 0) {
+        return "File rejected: the selected file is empty.";
+      }
+      const extension = file.name.split(".").pop().toLowerCase();
+      const acceptedMimeTypes = {
+        pdf: ["application/pdf"],
+        docx: ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+        txt: ["text/plain"],
+        png: ["image/png"],
+        jpg: ["image/jpeg"],
+        jpeg: ["image/jpeg"]
+      };
+      if (!acceptedMimeTypes[extension]) {
+        return "File rejected: unsupported file type. Choose PDF, DOCX, TXT, PNG, JPG, or JPEG.";
+      }
+      if (file.type && !acceptedMimeTypes[extension].includes(file.type.toLowerCase())) {
+        return "File rejected: unsupported file type. Choose PDF, DOCX, TXT, PNG, JPG, or JPEG.";
+      }
+      return "";
+    }
 
-        function setActiveInput(mode) {
-            activeInput = mode;
-            uploadTab.classList.toggle("is-selected", mode === "file");
-            textTab.classList.toggle("is-selected", mode === "text");
-            uploadTab.setAttribute("aria-selected", String(mode === "file"));
-            textTab.setAttribute("aria-selected", String(mode === "text"));
-            uploadPanel.hidden = mode !== "file";
-            textPanel.hidden = mode !== "text";
-            if (mode === "file") {
-                directText.value = "";
-                textRow.hidden = true;
-            } else {
-                fileInput.value = "";
-                showFileState();
-            }
-            updateSubmitState();
-        }
+    function rejectFile(message) {
+      fileInput.value = "";
+      document.getElementById("selected-file-bar").classList.add("hidden");
+      fileError.textContent = message;
+      fileError.classList.remove("hidden");
+      analyzeButton.disabled = true;
+    }
 
-        uploadTab.addEventListener("click", () => setActiveInput("file"));
-        textTab.addEventListener("click", () => setActiveInput("text"));
-        fileInput.addEventListener("change", showFileState);
-        directText.addEventListener("input", () => {
-            const hasText = directText.value.trim().length > 0;
-            textRow.hidden = !hasText;
-            document.getElementById("text-character-count").textContent =
-                `${directText.value.length.toLocaleString()} characters`;
-            updateSubmitState();
-        });
-        document.getElementById("clear-file").addEventListener("click", () => {
-            fileInput.value = "";
-            showFileState();
-            updateSubmitState();
-        });
-        document.getElementById("clear-text").addEventListener("click", () => {
-            directText.value = "";
-            textRow.hidden = true;
-            updateSubmitState();
-            directText.focus();
-        });
+    function onRealFileSelected(file) {
+      if (!file) return;
+      const validationError = validateFile(file);
+      if (validationError) {
+        rejectFile(validationError);
+        return;
+      }
+      fileError.textContent = "";
+      fileError.classList.add("hidden");
+      document.getElementById("file-name-label").textContent = file.name;
+      document.getElementById("file-size-label").textContent = formatFileSize(file.size);
+      document.getElementById("selected-file-bar").classList.remove("hidden");
+      analyzeButton.disabled = false;
+    }
 
-        uploadBox.addEventListener("dragover", (event) => {
-            event.preventDefault();
-            uploadBox.classList.add("is-dragging");
-        });
-        uploadBox.addEventListener("dragleave", () => uploadBox.classList.remove("is-dragging"));
-        uploadBox.addEventListener("drop", (event) => {
-            event.preventDefault();
-            uploadBox.classList.remove("is-dragging");
-            if (event.dataTransfer.files.length) {
-                fileInput.files = event.dataTransfer.files;
-                fileInput.dispatchEvent(new Event("change"));
-            }
-        });
-    </script>
+    fileInput.addEventListener("change", () => onRealFileSelected(fileInput.files[0]));
+    textInput.addEventListener("input", () => {
+      const value = textInput.value;
+      document.getElementById("live-char-count").textContent = `${value.length} character${value.length === 1 ? "" : "s"}`;
+      document.getElementById("clear-text-btn").classList.toggle("hidden", value.length === 0);
+      analyzeButton.disabled = value.trim().length === 0;
+    });
+
+    const dropArea = document.getElementById("drop-area");
+    dropArea.addEventListener("click", () => fileInput.click());
+    dropArea.addEventListener("keydown", (event) => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        fileInput.click();
+      }
+    });
+    dropArea.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      dropArea.style.borderColor = "var(--accent)";
+    });
+    dropArea.addEventListener("dragleave", () => {
+      dropArea.style.borderColor = "var(--border-strong)";
+    });
+    dropArea.addEventListener("drop", (event) => {
+      event.preventDefault();
+      dropArea.style.borderColor = "var(--border-strong)";
+      if (!event.dataTransfer.files.length) return;
+      const droppedFile = event.dataTransfer.files[0];
+      const validationError = validateFile(droppedFile);
+      if (validationError) {
+        rejectFile(validationError);
+        return;
+      }
+      const acceptedFiles = new DataTransfer();
+      acceptedFiles.items.add(droppedFile);
+      fileInput.files = acceptedFiles.files;
+      onRealFileSelected(droppedFile);
+    });
+  </script>
 </body>
 </html>

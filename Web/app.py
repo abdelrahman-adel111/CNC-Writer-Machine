@@ -7,6 +7,8 @@ import threading
 import time
 import urllib.request
 import uuid
+import xml.etree.ElementTree as ET
+import zipfile
 from pathlib import Path
 
 from flask import Flask, abort, render_template, request, send_file, send_from_directory
@@ -21,14 +23,16 @@ if str(PROJECT_ROOT) not in sys.path:
 from Script1.pdf_utils import has_extractable_pdf_text
 
 app = Flask(__name__)
-app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024
+MAX_FILE_BYTES = 16 * 1024 * 1024
+app.config["MAX_CONTENT_LENGTH"] = MAX_FILE_BYTES + 1024 * 1024
 app.config["UPLOAD_FOLDER"] = PROJECT_ROOT / "Web" / "uploads"
 app.config["UPLOAD_FOLDER"].mkdir(parents=True, exist_ok=True)
 
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".bmp", ".tif", ".tiff", ".webp", ".pdf"}
+ALLOWED_EXTENSIONS = {".pdf", ".docx", ".txt", ".png", ".jpg", ".jpeg"}
+TEXT_DOCUMENT_EXTENSIONS = {".docx", ".txt"}
 UPLOAD_RETENTION_SECONDS = 24 * 60 * 60
-UPLOAD_NAME_PATTERN = re.compile(r"upload_[0-9a-f]{32}\.(?:png|jpe?g|bmp|tiff?|webp|pdf)\Z")
-UPLOAD_CLEANUP_PATTERN = re.compile(r"upload_[a-zA-Z0-9_-]+\.(?:png|jpe?g|bmp|tiff?|webp|pdf)\Z")
+UPLOAD_NAME_PATTERN = re.compile(r"upload_[0-9a-f]{32}\.(?:png|jpe?g|pdf|docx|txt)\Z")
+UPLOAD_CLEANUP_PATTERN = re.compile(r"upload_[a-zA-Z0-9_-]+\.(?:png|jpe?g|pdf|docx|txt|bmp|tiff?|webp)\Z")
 PROCESSING_JOBS = {}
 PROCESSING_JOBS_LOCK = threading.Lock()
 OCR_PROCESS_LOCK = threading.Lock()
@@ -44,6 +48,54 @@ ANSI_ESCAPE_PATTERN = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]")
 
 def allowed_file(filename: str) -> bool:
     return Path(filename).suffix.lower() in ALLOWED_EXTENSIONS
+
+
+def extract_text_document(source_path: Path) -> str:
+    if source_path.suffix.lower() == ".txt":
+        try:
+            text = source_path.read_text(encoding="utf-8-sig")
+        except UnicodeDecodeError as exc:
+            raise ValueError("The TXT file must use UTF-8 encoding.") from exc
+    elif source_path.suffix.lower() == ".docx":
+        try:
+            with zipfile.ZipFile(source_path) as document:
+                document_xml = document.getinfo("word/document.xml")
+                if document_xml.file_size > 32 * 1024 * 1024:
+                    raise ValueError("The DOCX document contains too much text to process.")
+                root = ET.fromstring(document.read(document_xml))
+        except (KeyError, zipfile.BadZipFile, ET.ParseError) as exc:
+            raise ValueError("The DOCX file is invalid or could not be read.") from exc
+
+        word_ns = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
+        paragraphs = []
+        for paragraph in root.iter(f"{word_ns}p"):
+            pieces = []
+            for element in paragraph.iter():
+                if element.tag == f"{word_ns}t":
+                    pieces.append(element.text or "")
+                elif element.tag == f"{word_ns}tab":
+                    pieces.append("\t")
+                elif element.tag == f"{word_ns}br":
+                    pieces.append("\n")
+            paragraphs.append("".join(pieces))
+        text = "\n".join(paragraphs)
+    else:
+        raise ValueError("Only DOCX and TXT documents can be read as text files.")
+
+    text = text.strip()
+    if not text:
+        raise ValueError("No readable text was found in the uploaded file.")
+    return text
+
+
+def build_pipeline_steps(input_kind: str, processing_mode: str) -> list[dict]:
+    steps = []
+    if input_kind == "file":
+        steps.append({"key": "extract", "label": "Extract Text"})
+    if processing_mode == "summarize":
+        steps.append({"key": "summarize", "label": "AI Summarization"})
+    steps.append({"key": "gcode", "label": "Generate G-Code"})
+    return steps
 
 
 def ocr_worker_timeout(source_path: Path) -> int:
@@ -80,26 +132,27 @@ def summarize_text(text: str) -> str:
 
 def generate_starter_gcode(text: str) -> str:
     gcode_lines = [
-        "; CNC Smart Writer starter pen plotter program",
-        "; Human-verified text preparation - motion placeholders only",
-        "G21 ; millimeters",
-        "G90 ; absolute positioning",
-        "G0 Z5 ; pen up",
+        "; CNC Smart Writer — Starter Pen Plotter Program",
+        "; Human-verified text preparation (motion placeholders)",
+        "G21 ; Set units to millimeters",
+        "G90 ; Absolute positioning",
+        "G00 Z5.0 ; Pen UP (safe clearance)",
+        "",
     ]
-    for line_number, line in enumerate(text.splitlines() or [""], start=1):
-        y = (line_number - 1) * 10
-        safe_comment = "".join(
-            char for char in line[:80] if char.isprintable()
-        )
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for line_number, line in enumerate(lines, start=1):
+        y = 24 + (line_number - 1) * 16
+        x_end = min(195, 14 + len(line) * 6.2)
         gcode_lines.extend([
-            f"; Text line {line_number}: {safe_comment}",
-            f"G0 X0 Y{y}",
-            "G1 Z0 ; pen down",
-            "G1 X10 ; placeholder motion",
-            "G0 Z5 ; pen up",
+            f"; Line {line_number}: {line}",
+            f"G00 X14.0 Y{y:.1f}",
+            "G01 Z0.0 F600 ; Pen DOWN",
+            f"G01 X{x_end:.1f} Y{y:.1f} F1200",
+            "G00 Z5.0 ; Pen UP",
+            "",
         ])
-    gcode_lines.extend(["G0 X0 Y0", "M30 ; end program"])
-    return "\n".join(gcode_lines) + "\n"
+    gcode_lines.extend(["G00 X0.0 Y0.0 ; Return to origin", "M30 ; End program"])
+    return "\n".join(gcode_lines)
 
 
 def run_ocr_isolated(source_path: Path, languages: list[str]) -> dict:
@@ -259,7 +312,9 @@ def build_result_context(
         confidence >= OCR_ACCEPTANCE_THRESHOLD for confidence in page_confidences
     )
 
-    if not has_ocr_confidence and any(page.get("backend") == "pdf_text" for page in pages):
+    if suffix in TEXT_DOCUMENT_EXTENSIONS:
+        confidence_label = "Text extracted directly from the uploaded file"
+    elif not has_ocr_confidence and any(page.get("backend") == "pdf_text" for page in pages):
         confidence_label = "PDF text extracted directly — no OCR score"
     elif meets_target:
         confidence_label = "Model score meets the 90% target — human review is still required"
@@ -302,10 +357,17 @@ def build_result_context(
         "ocr_confidence": ocr_confidence if has_ocr_confidence else 1.0,
         "meets_target": meets_target,
         "processing_mode": "summarize",
-        "preview_kind": "pdf" if suffix == ".pdf" else "image",
-        "preview_url": f"/preview/{upload_path.name}",
+        "preview_kind": (
+            "text" if suffix in TEXT_DOCUMENT_EXTENSIONS
+            else ("pdf" if suffix == ".pdf" else "image")
+        ),
+        "preview_url": (
+            None if suffix in TEXT_DOCUMENT_EXTENSIONS
+            else f"/preview/{upload_path.name}"
+        ),
         "reviewed_text": extracted_text,
         "human_approved": False,
+        "gcode_preview": generate_starter_gcode(extracted_text),
     }
 
 
@@ -321,151 +383,124 @@ def process_upload_job(
 ) -> None:
     try:
         if direct_text.strip():
-            extracted_text = direct_text.strip()
-            context = {
-                "filename": "Direct text",
-                "job_id": job_id,
-                "language_label": "Not applicable",
+            input_kind = "direct_text"
+            suffix = ".txt"
+            result = {
+                "text": direct_text.strip(),
+                "pages": [{
+                    "page": 1,
+                    "backend": "direct_text",
+                    "confidence": 1.0,
+                    "confidence_source": "direct_text",
+                    "text": direct_text.strip(),
+                }],
                 "page_count": 1,
-                "summary": summarize_text(extracted_text),
-                "ai_result": (
-                    "Preparing the AI summary..."
-                    if processing_mode == "summarize"
-                    else "AI summary skipped because Keep Text As-Is was selected."
-                ),
-                "model_status": "processing" if processing_mode == "summarize" else "skipped",
-                "model_input_truncated": False,
-                "raw_text": extracted_text,
-                "ocr_warning": None,
                 "ocr_status": "direct_text",
-                "pages": [],
-                "backend": "direct_text",
-                "confidence_percent": 100,
-                "confidence_label": "Direct text — OCR not required",
-                "has_ocr_confidence": True,
-                "ocr_confidence": 1.0,
-                "meets_target": True,
-                "processing_mode": processing_mode,
-                "preview_kind": "text",
-                "preview_url": None,
-                "reviewed_text": extracted_text,
-                "human_approved": False,
+                "warning": None,
             }
-            update_job(
-                job_id,
-                stage="complete",
-                progress=100,
-                message="Direct text received. Ready for human review.",
-                result=context,
-                updated_at=time.time(),
-            )
-            if processing_mode == "summarize":
-                worker = threading.Thread(
-                    target=run_vlm_summary,
-                    args=(job_id, extracted_text, 1.0),
-                    daemon=True,
-                )
-                with PROCESSING_JOBS_LOCK:
-                    PROCESSING_JOBS[job_id]["model_worker"] = worker
-                worker.start()
-            return
-
-        update_job(
-            job_id,
-            stage="ocr",
-            progress=15,
-            message="File saved. Checking embedded text and pages that require OCR...",
-        )
-        with OCR_PROCESS_LOCK:
+        else:
+            input_kind = "file"
             update_job(
                 job_id,
                 stage="ocr",
-                progress=20,
-                message="Extracting embedded text or reading scanned pages...",
+                progress=12,
+                message="Extracting text from the uploaded file...",
             )
-            result = run_ocr_isolated(upload_path, languages)
-        update_job(
-            job_id,
-            stage="model",
-            progress=72,
-            message="OCR complete. Evaluating confidence and preparing the result...",
-        )
+            if suffix in TEXT_DOCUMENT_EXTENSIONS:
+                extracted_text = extract_text_document(upload_path)
+                result = {
+                    "text": extracted_text,
+                    "pages": [{
+                        "page": 1,
+                        "backend": "file_text",
+                        "confidence": 1.0,
+                        "confidence_source": "file_text",
+                        "text": extracted_text,
+                    }],
+                    "page_count": 1,
+                    "ocr_status": "file_text",
+                    "warning": None,
+                }
+            else:
+                with OCR_PROCESS_LOCK:
+                    update_job(
+                        job_id,
+                        stage="ocr",
+                        progress=20,
+                        message="Reading document pages and extracting text...",
+                    )
+                    result = run_ocr_isolated(upload_path, languages)
+
         context = build_result_context(
             result, filename, suffix, upload_path, job_id, language_label
         )
         context["processing_mode"] = processing_mode
-        summary_request = None
+        context["input_kind"] = input_kind
+        if input_kind == "direct_text":
+            context["preview_url"] = None
+        completed_steps = ["extract"] if input_kind == "file" else []
+
         if (
             processing_mode == "summarize"
             and context["meets_target"]
             and result.get("ocr_status") != "no_text_detected"
         ):
-            update_job(
-                job_id,
-                stage="model",
-                progress=82,
-                message="OCR complete. Preparing the AI summary...",
-            )
             context["model_status"] = "processing"
-            summary_request = (
-                context["raw_text"],
-                context["ocr_confidence"],
-            )
-        elif processing_mode == "as_is":
-            context["model_status"] = "skipped"
-            context["ai_result"] = "AI summary skipped because Keep Text As-Is was selected."
+            context["ai_result"] = "AI summarization is in progress."
             update_job(
                 job_id,
-                stage="review",
-                progress=90,
-                message="Processing complete. Proceeding to human review.",
+                stage="summarize",
+                progress=60,
+                message="Summarizing the extracted text with local AI...",
+                current_step="summarize",
+                completed_steps=completed_steps,
+                result=context,
             )
-        elif result.get("ocr_status") == "no_text_detected":
-            update_job(
-                job_id,
-                stage="review",
-                progress=90,
-                message="No readable text was detected. Review the OCR diagnostic.",
-            )
+            run_vlm_summary(job_id, context["raw_text"], context["ocr_confidence"])
+            with PROCESSING_JOBS_LOCK:
+                job = PROCESSING_JOBS.get(job_id)
+                if job is not None and job.get("result") is not None:
+                    context = job["result"]
+            completed_steps.append("summarize")
         else:
-            update_job(
-                job_id,
-                stage="review",
-                progress=90,
-                message="Confidence is below 90%; the model summary was skipped.",
-            )
-
-        model_worker = None
-        with PROCESSING_JOBS_LOCK:
-            job = PROCESSING_JOBS.get(job_id)
-            if job is not None:
-                if summary_request is not None:
-                    model_worker = threading.Thread(
-                        target=run_vlm_summary,
-                        args=(job_id, *summary_request),
-                        daemon=True,
-                    )
-                job.update(
-                    stage="complete",
-                    progress=100,
-                    message="Text extraction complete. Review the result; the AI summary will appear when complete."
-                    if summary_request is not None
-                    else "Processing complete. Review the extracted text before approval.",
-                    result=context,
-                    updated_at=time.time(),
+            context["model_status"] = "skipped"
+            if processing_mode == "as_is":
+                context["ai_result"] = "Summarization was not selected."
+            elif result.get("ocr_status") == "no_text_detected":
+                context["ai_result"] = (
+                    "AI summarization was skipped because no text was extracted."
                 )
-                if model_worker is not None:
-                    job["model_worker"] = model_worker
-        if model_worker is not None:
-            model_worker.start()
+            else:
+                context["ai_result"] = (
+                    "AI summarization was skipped because text recognition confidence "
+                    "was below 90%."
+                )
+            context["reviewed_text"] = context["raw_text"]
+            if processing_mode == "summarize":
+                completed_steps.append("summarize")
+
+        update_job(
+            job_id,
+            stage="gcode",
+            progress=88,
+            message="Generating the G-Code preview...",
+            current_step="gcode",
+            completed_steps=completed_steps,
+            result=context,
+        )
+        context["gcode_preview"] = generate_starter_gcode(context["reviewed_text"])
+        update_job(
+            job_id,
+            stage="complete",
+            progress=100,
+            message="Processing complete. Continue to output for verification.",
+            current_step=None,
+            completed_steps=completed_steps + ["gcode"],
+            result=context,
+        )
     except Exception as exc:
         app.logger.exception("Document processing job %s failed", job_id)
         update_job(job_id, stage="failed", error=str(exc), message="Unable to complete processing.")
-        if upload_path.exists():
-            try:
-                upload_path.unlink()
-            except OSError:
-                app.logger.warning("Could not remove failed upload: %s", upload_path)
 
 
 def run_vlm_summary(job_id: str, text: str, ocr_confidence: float) -> None:
@@ -477,7 +512,12 @@ def run_vlm_summary(job_id: str, text: str, ocr_confidence: float) -> None:
             ocr_confidence=ocr_confidence,
         )
         model_status = "complete" if response.get("status") == "ok" else "error"
-        ai_result = response.get("result") or "The model returned an empty summary."
+        result_text = response.get("result")
+        ai_result = (
+            result_text.strip()
+            if isinstance(result_text, str) and result_text.strip()
+            else "The model returned an empty summary."
+        )
         if model_status == "error":
             app.logger.warning("VLM summary failed for job %s: %s", job_id, ai_result)
             ai_result = "Local AI service (Ollama) is offline — showing extracted text only."
@@ -492,6 +532,9 @@ def run_vlm_summary(job_id: str, text: str, ocr_confidence: float) -> None:
         if job is not None and job.get("result") is not None:
             job["result"]["model_status"] = model_status
             job["result"]["ai_result"] = ai_result
+            job["result"]["reviewed_text"] = (
+                ai_result if model_status == "complete" else job["result"]["raw_text"]
+            )
             job["result"]["model_input_truncated"] = bool(
                 response.get("input_truncated", False)
             )
@@ -513,6 +556,14 @@ def cleanup_expired_jobs() -> None:
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.errorhandler(RequestEntityTooLarge)
+def request_too_large(_error):
+    return render_template(
+        "index.html",
+        error="The upload exceeds the 16 MB limit. Choose a smaller file.",
+    ), 413
 
 
 @app.route("/health")
@@ -556,7 +607,25 @@ def process_document():
         return render_template("index.html", error="Choose a file or enter text to analyze."), 400
 
     if has_file and not allowed_file(file.filename):
-        return render_template("index.html", error="Allowed types: PDF, JPG, PNG, BMP, TIFF, and WEBP."), 400
+        return render_template(
+            "index.html",
+            error="Allowed file types: PDF, DOCX, TXT, PNG, JPG, and JPEG.",
+        ), 400
+
+    if has_file:
+        file.stream.seek(0, os.SEEK_END)
+        file_size = file.stream.tell()
+        file.stream.seek(0)
+        if file_size == 0:
+            return render_template(
+                "index.html",
+                error="The selected file is empty. Choose a file containing data.",
+            ), 400
+        if file_size > MAX_FILE_BYTES:
+            return render_template(
+                "index.html",
+                error="The upload exceeds the 16 MB limit. Choose a smaller file.",
+            ), 413
 
     languages, language_label = ["en"], "English (locked)"
 
@@ -580,31 +649,51 @@ def process_document():
 
     job_id = uuid.uuid4().hex
     cleanup_expired_jobs()
+    input_kind = "file" if has_file else "direct_text"
+    pipeline_steps = build_pipeline_steps(input_kind, processing_mode)
+    worker_args = (
+        job_id,
+        temp_path,
+        original_filename,
+        suffix,
+        languages,
+        language_label,
+        direct_text,
+        processing_mode,
+    )
     with PROCESSING_JOBS_LOCK:
         PROCESSING_JOBS[job_id] = {
             "stage": "queued",
             "progress": 5,
             "message": "Input received. Starting processing...",
+            "current_step": pipeline_steps[0]["key"],
+            "completed_steps": [],
+            "pipeline_steps": pipeline_steps,
+            "processing_mode": processing_mode,
+            "input_kind": input_kind,
+            "preview_kind": (
+                "text" if (not has_file or suffix in TEXT_DOCUMENT_EXTENSIONS)
+                else ("pdf" if suffix == ".pdf" else "image")
+            ),
+            "preview_url": f"/preview/{temp_path.name}" if has_file else None,
+            "preview_text": direct_text[:1600],
+            "filename": original_filename,
+            "retry_args": worker_args[1:],
             "created_at": time.time(),
             "updated_at": time.time(),
         }
-        worker = threading.Thread(
-            target=process_upload_job,
-            args=(
-                job_id,
-                temp_path,
-                original_filename,
-                suffix,
-                languages,
-                language_label,
-                direct_text,
-                processing_mode,
-            ),
-            daemon=True,
-        )
+        worker = threading.Thread(target=process_upload_job, args=worker_args, daemon=True)
         PROCESSING_JOBS[job_id]["worker"] = worker
     worker.start()
-    return render_template("processing.html", job_id=job_id)
+    return render_template(
+        "processing.html",
+        job_id=job_id,
+        preview_kind=PROCESSING_JOBS[job_id]["preview_kind"],
+        preview_url=PROCESSING_JOBS[job_id]["preview_url"],
+        preview_text=PROCESSING_JOBS[job_id]["preview_text"],
+        filename=PROCESSING_JOBS[job_id]["filename"],
+        pipeline_steps=pipeline_steps,
+    )
 
 
 @app.route("/status/<job_id>")
@@ -617,6 +706,11 @@ def processing_status(job_id: str):
             "stage": job["stage"],
             "progress": job["progress"],
             "message": job["message"],
+            "processing_mode": job.get("processing_mode", "summarize"),
+            "input_kind": job.get("input_kind", "file"),
+            "pipeline_steps": job.get("pipeline_steps", []),
+            "completed_steps": job.get("completed_steps", []),
+            "current_step": job.get("current_step"),
         }
         if job.get("result") is not None:
             response["model_status"] = job["result"]["model_status"]
@@ -640,7 +734,15 @@ def completed_result(job_id: str):
         if job["stage"] == "failed":
             error = job.get("error", "Processing failed.")
         elif job["stage"] != "complete":
-            return render_template("processing.html", job_id=job_id), 202
+            return render_template(
+                "processing.html",
+                job_id=job_id,
+                preview_kind=job.get("preview_kind", "text"),
+                preview_url=job.get("preview_url"),
+                preview_text=job.get("preview_text", ""),
+                filename=job.get("filename", ""),
+                pipeline_steps=job.get("pipeline_steps", []),
+            ), 202
         else:
             if job["result"].get("human_approved"):
                 job["result"]["gcode_preview"] = generate_starter_gcode(
@@ -648,6 +750,48 @@ def completed_result(job_id: str):
                 )
             return render_template("result.html", **job["result"])
     return render_template("index.html", error=f"Processing failed: {error}"), 500
+
+
+@app.route("/retry/<job_id>", methods=["POST"])
+def retry_processing(job_id: str):
+    with PROCESSING_JOBS_LOCK:
+        job = PROCESSING_JOBS.get(job_id)
+        if job is None or job.get("stage") != "failed":
+            abort(404)
+        retry_args = job.get("retry_args")
+        if retry_args is None:
+            abort(404)
+        pipeline_steps = job.get("pipeline_steps", [])
+        if not pipeline_steps:
+            abort(500)
+        job.update(
+            stage="queued",
+            progress=5,
+            message="Retrying document processing...",
+            current_step=pipeline_steps[0]["key"],
+            completed_steps=[],
+            result=None,
+            error=None,
+            updated_at=time.time(),
+        )
+        worker_args = (job_id, *retry_args)
+        worker = threading.Thread(
+            target=process_upload_job, args=worker_args, daemon=True
+        )
+        job["worker"] = worker
+        preview = {
+            "preview_kind": job.get("preview_kind", "text"),
+            "preview_url": job.get("preview_url"),
+            "preview_text": job.get("preview_text", ""),
+            "filename": job.get("filename", ""),
+        }
+    worker.start()
+    return render_template(
+        "processing.html",
+        job_id=job_id,
+        pipeline_steps=pipeline_steps,
+        **preview,
+    )
 
 
 @app.route("/review/<job_id>", methods=["POST"])

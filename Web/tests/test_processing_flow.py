@@ -101,7 +101,7 @@ class ProcessingFlowTests(unittest.TestCase):
         }
 
         def fake_ocr(_path, languages):
-            self.assertEqual(languages, ["auto"])
+            self.assertEqual(languages, ["en"])
             ocr_started.set()
             self.assertTrue(continue_ocr.wait(5))
             return ocr_result
@@ -122,7 +122,6 @@ class ProcessingFlowTests(unittest.TestCase):
                 content_type="multipart/form-data",
             )
             self.assertEqual(response.status_code, 200)
-            self.assertIn("processing-spinner", response.get_data(as_text=True))
             job_id = response.get_data(as_text=True).split('const jobId = "')[1].split('"')[0]
 
             self.assertTrue(ocr_started.wait(5))
@@ -130,24 +129,19 @@ class ProcessingFlowTests(unittest.TestCase):
             continue_ocr.set()
 
             self.assertTrue(model_started.wait(5))
-            completed = self.wait_for_status(job_id, "complete")
-            self.assertEqual(completed["model_status"], "processing")
+            self.assertEqual(
+                self.client.get(f"/status/{job_id}").get_json()["stage"],
+                "summarize",
+            )
             continue_model.set()
-
-            deadline = time.monotonic() + 5
-            while time.monotonic() < deadline:
-                completed = self.client.get(f"/status/{job_id}").get_json()
-                if completed.get("model_status") == "complete":
-                    break
-                time.sleep(0.01)
+            completed = self.wait_for_status(job_id, "complete")
             self.assertEqual(completed.get("model_status"), "complete")
             result_response = self.client.get(completed["result_url"])
             self.assertEqual(result_response.status_code, 200)
             result_html = result_response.get_data(as_text=True)
             result_response.close()
-            self.assertIn("Original document", result_html)
+            self.assertIn("Extracted Text", result_html)
             self.assertIn("Grounded summary", result_html)
-            self.assertIn("90% target", result_html)
 
             denied = self.client.post(
                 f"/review/{job_id}",
@@ -160,8 +154,7 @@ class ProcessingFlowTests(unittest.TestCase):
             )
             self.assertEqual(approved.status_code, 200)
             approved_html = approved.get_data(as_text=True)
-            self.assertIn("تم حفظ اعتمادك للنص المصحح", approved_html)
-            self.assertIn("لم يتم إرسال أي أمر إلى العتاد", approved_html)
+            self.assertIn("Approve &amp; Generate G-Code", approved_html)
 
             with PROCESSING_JOBS_LOCK:
                 upload_name = PROCESSING_JOBS[job_id]["result"]["preview_url"].split("/")[-1]
@@ -198,8 +191,8 @@ class ProcessingFlowTests(unittest.TestCase):
             self.assertFalse(model.called)
             page = self.client.get(status["result_url"])
             html = page.get_data(as_text=True)
-            self.assertIn("Below the 90% target", html)
-            self.assertIn("OCR confidence is below 90%", html)
+            self.assertIn("AI Summary", html)
+            self.assertIn("text recognition confidence was below 90%", html)
             page.close()
 
     def test_vlm_failure_does_not_hide_completed_ocr_result(self):
@@ -227,10 +220,14 @@ class ProcessingFlowTests(unittest.TestCase):
             )
             job_id = response.get_data(as_text=True).split('const jobId = "')[1].split('"')[0]
             completed = self.wait_for_status(job_id, "complete")
-            model_result = self.wait_for_model_status(job_id, "error")
+            model_result = self.wait_for_model_status(job_id, "offline")
 
         self.assertEqual(completed["stage"], "complete")
-        self.assertIn("Ollama timed out", model_result["ai_result"])
+        self.assertEqual(model_result["model_status"], "offline")
+        self.assertEqual(
+            model_result["ai_result"],
+            "Local AI service (Ollama) is offline — showing extracted text only.",
+        )
         self.assertFalse(model_result["model_input_truncated"])
         result_page = self.client.get(completed["result_url"])
         self.assertIn("Recognized source text", result_page.get_data(as_text=True))
@@ -272,9 +269,8 @@ class ProcessingFlowTests(unittest.TestCase):
             html = result_page.get_data(as_text=True)
 
         self.assertIn("Lecture summary", html)
-        self.assertIn(
-            "تم تلخيص مقتطفات موزعة من الملف لطوله", html
-        )
+        self.assertIn("AI Summary", html)
+        self.assertIn("lecture content", html)
         result_page.close()
 
     def test_pdf_upload_uses_english_ocr_and_keeps_pdf_preview(self):
@@ -313,11 +309,10 @@ class ProcessingFlowTests(unittest.TestCase):
             completed = self.wait_for_status(job_id, "complete")
             completed = self.wait_for_model_status(job_id, "complete")
             page = self.client.get(completed["result_url"])
-            self.assertEqual(ocr.call_args.args[1], ["auto"])
+            self.assertEqual(ocr.call_args.args[1], ["en"])
             self.assertEqual(Path(ocr.call_args.args[0]).suffix, ".pdf")
             self.assertIn("PDF summary", page.get_data(as_text=True))
-            self.assertIn("English (auto-detected)", page.get_data(as_text=True))
-            self.assertIn("no OCR score", page.get_data(as_text=True))
+            self.assertIn("AI Summary", page.get_data(as_text=True))
             page.close()
 
             with PROCESSING_JOBS_LOCK:
@@ -353,8 +348,7 @@ class ProcessingFlowTests(unittest.TestCase):
             page = self.client.get(completed["result_url"])
             html = page.get_data(as_text=True)
             self.assertIn("Direct PDF summary", html)
-            self.assertIn("English (auto-detected)", html)
-            self.assertIn("PDF text extracted directly", html)
+            self.assertIn("Extracted Text", html)
             self.assertIn(
                 "A searchable English lecture page extracted directly from its PDF text layer.",
                 html,
@@ -399,12 +393,11 @@ class ProcessingFlowTests(unittest.TestCase):
         self.assertLessEqual(VLM_SERVICE_TIMEOUT_SECONDS, 100)
         self.assertGreater(VLM_SERVICE_TIMEOUT_SECONDS, 90)
 
-    def test_upload_form_defaults_to_automatic_language_detection(self):
+    def test_upload_form_is_locked_to_english_without_language_selector(self):
         response = self.client.get("/")
-        self.assertIn(
-            '<option value="auto" selected>اكتشاف تلقائي',
-            response.get_data(as_text=True),
-        )
+        page = response.get_data(as_text=True)
+        self.assertIn('<input type="hidden" name="language" value="en">', page)
+        self.assertNotIn("Document language", page)
 
     def test_english_selection_uses_the_english_recognition_model(self):
         result = {

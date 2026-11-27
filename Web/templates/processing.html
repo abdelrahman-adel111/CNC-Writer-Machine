@@ -1,118 +1,228 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0b1220">
-    <title>Pipeline in Progress | CNC Smart Writer</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CNC Smart Writer — Processing</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
 </head>
-<body>
-    <main class="app-shell processing-shell">
-        <nav class="topbar" aria-label="Main navigation">
-            <a class="brand" href="/">
-                <span class="brand-mark" aria-hidden="true">CW</span>
-                <span class="brand-name">CNC Smart Writer<span class="brand-light">Document-to-Motion Control Studio</span></span>
+<body data-theme="obsidian" class="min-h-screen flex flex-col antialiased selection:bg-orange-500/30">
+  <header class="sticky top-0 z-40 border-b backdrop-blur-xl" style="border-color: var(--border-hairline); background: var(--bg-card);">
+    <div class="max-w-6xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl flex items-center justify-center shadow-md" style="background: var(--accent-gradient); color: var(--accent-fg);">
+          <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <path d="m12 18.5 7.2-7.2L22 4l-7.3 2.8-7.2 7.3-2 7.2 6.5-2.8Z"/>
+            <path d="m14.7 7.1 3.1 3.1M7.5 14.3l4.7 4.7"/>
+            <path d="M3 20.5c.8-1.2 1.8-1.8 3-1.8"/>
+          </svg>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-base sm:text-lg font-bold tracking-tight">CNC Smart Writer</span>
+          <span class="font-mono-tech text-[10px] font-semibold px-2 py-0.5 rounded-full" style="background: var(--accent-soft); color: var(--accent);">English</span>
+        </div>
+      </div>
+      <nav aria-label="Workflow Steps" class="pointer-events-none flex items-center gap-1 p-1 rounded-xl border order-3 sm:order-2 w-full sm:w-auto justify-center" style="border-color: var(--border-hairline); background: var(--bg-input);">
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">01 Input</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-semibold" style="background: var(--bg-elevated); color: var(--text-main);" aria-current="step">02 Processing</span>
+        <span class="px-3 py-1.5 rounded-lg text-xs font-medium" style="color: var(--text-muted);">03 Output</span>
+      </nav>
+      <button type="button" onclick="toggleTheme()" id="theme-toggle-btn" class="order-2 sm:order-3 px-3.5 py-2 rounded-xl text-xs font-semibold btn-ghost flex items-center gap-2 cursor-pointer" title="Switch theme">
+        <span id="theme-icon" class="w-4 h-4 flex items-center justify-center" style="color: var(--accent);"></span>
+        <span id="theme-label">Bento Light</span>
+      </button>
+    </div>
+  </header>
+
+  <main class="flex-1 w-full mx-auto px-4 sm:px-6 py-8 sm:py-12 flex flex-col justify-center">
+    <section class="w-full max-w-[560px] mx-auto my-auto">
+      <div class="studio-card p-5 sm:p-7 space-y-5">
+        <div class="relative rounded-2xl border p-4 overflow-hidden" style="border-color: var(--border-hairline); background: var(--bg-input);">
+          <div class="relative h-40 sm:h-48 rounded-xl overflow-hidden border flex items-center justify-center" style="border-color: var(--border-hairline); background: var(--bg-elevated);">
+            <div class="laser-beam" style="visibility: hidden;"></div>
+            {% if preview_kind == "image" and preview_url %}
+            <img src="{{ preview_url }}" alt="Uploaded source preview" class="relative z-10 max-w-full max-h-full object-contain">
+            {% elif preview_kind == "pdf" and preview_url %}
+            <embed src="{{ preview_url }}" type="application/pdf" class="relative z-10 w-full h-full">
+            {% elif preview_kind == "text" %}
+            <div class="relative z-10 w-full h-full p-4 overflow-hidden font-mono-tech text-xs leading-relaxed whitespace-pre-wrap" style="color: var(--text-muted);">{{ preview_text or filename }}</div>
+            {% endif %}
+          </div>
+          <div class="relative z-10 min-w-0 pt-3 text-center">
+            <h1 class="text-xl font-bold tracking-tight" id="processing-heading">Processing your input</h1>
+            <p class="mt-1 text-xs truncate" style="color: var(--text-muted);">{{ filename }}</p>
+            <p id="processing-message" class="mt-2 text-xs" style="color: var(--text-muted);" aria-live="polite">Starting processing...</p>
+          </div>
+        </div>
+
+        <div class="w-full h-2 rounded-full overflow-hidden" style="background: var(--bg-input);">
+          <div id="pipeline-progress-bar" class="h-full rounded-full transition-all duration-500" style="width: 4%; background: var(--accent-gradient);"></div>
+        </div>
+
+        <div id="pipeline-steps" class="space-y-2.5">
+          {% for step in pipeline_steps %}
+          <div class="p-3.5 studio-panel flex items-center justify-between" data-pipeline-step="{{ step.key }}" data-state="pending">
+            <div class="flex items-center gap-3">
+              <span class="step-indicator w-6 h-6 rounded-full flex items-center justify-center font-mono-tech text-[11px]" style="background: var(--bg-input); color: var(--text-dim);">{{ loop.index }}</span>
+              <span class="step-label text-xs font-medium">{{ step.label }}</span>
+            </div>
+            <span class="step-status font-mono-tech text-[10px]" style="color: var(--text-dim);">PENDING</span>
+          </div>
+          {% endfor %}
+        </div>
+
+        <div id="offline-notice" class="hidden rounded-xl border p-3.5 text-xs" style="border-color: var(--border-strong); color: var(--text-muted); background: var(--bg-input);">Local AI service (Ollama) is offline — showing extracted text only.</div>
+        <div id="processing-error" class="hidden rounded-xl border p-3.5 text-xs" role="alert" style="border-color: #ef4444; color: #ef4444; background: rgba(239, 68, 68, 0.08);"></div>
+
+        <div class="space-y-3 pt-1">
+          <div class="flex flex-wrap items-center justify-between gap-3">
+            <a href="/" class="px-4 py-2 text-xs font-semibold btn-ghost flex items-center gap-2">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m11 18-6-6 6-6"/></svg>
+              <span>Return to Input</span>
             </a>
-            <span class="topbar-status"><span class="status-dot"></span> PIPELINE ACTIVE</span>
-        </nav>
+            <a id="continue-button" href="{{ url_for('completed_result', job_id=job_id) }}" class="hidden px-4 py-2 text-xs font-semibold btn-accent items-center gap-2">
+              <span>Continue to Output</span>
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14"/><path d="m13 6 6 6-6 6"/></svg>
+            </a>
+          </div>
+          <form id="retry-form" class="hidden mx-auto w-full" method="post" action="{{ url_for('retry_processing', job_id=job_id) }}">
+            <button type="submit" class="mx-auto block px-6 py-2.5 text-xs font-semibold btn-ghost">Retry</button>
+          </form>
+        </div>
+      </div>
+    </section>
+  </main>
 
-        <section class="processing-card panel" aria-labelledby="processing-title">
-            <div class="processing-header">
-                <div class="processing-orbit" aria-hidden="true"><span></span></div>
-                <p class="eyebrow">DOCUMENT-TO-MOTION PIPELINE</p>
-                <h1 id="processing-title">Preparing your source</h1>
-                <p class="processing-message" id="processing-message" aria-live="polite">
-                    Input received. Starting processing...
-                </p>
-                <p class="processing-elapsed" id="processing-elapsed" aria-live="off">Elapsed time: 00:00</p>
-            </div>
-            <div class="processing-progress" role="progressbar"
-                 aria-label="Processing progress" aria-valuemin="0" aria-valuemax="100"
-                 aria-valuenow="5" id="progress-bar">
-                <span id="progress-fill"></span>
-            </div>
-            <ol class="processing-steps" aria-label="Processing stages">
-                <li data-stage="queued"><span class="stage-indicator">1</span><div><strong>Receive Input</strong><small>Prepare the selected source</small></div></li>
-                <li data-stage="ocr"><span class="stage-indicator">2</span><div><strong>Extract Text</strong><small>Read and organize source content</small></div></li>
-                <li data-stage="model"><span class="stage-indicator">3</span><div><strong>AI Analysis</strong><small>Optional summary when selected</small></div></li>
-                <li data-stage="review"><span class="stage-indicator">4</span><div><strong>Human Review</strong><small>Verify text before export</small></div></li>
-            </ol>
-            <div class="processing-error" id="processing-error" hidden>
-                <strong>Processing failed</strong>
-                <p id="processing-error-message"></p>
-                <a class="secondary-button" href="/">Return to workspace</a>
-            </div>
-        </section>
-        <a class="cancel-link" href="/">← Cancel &amp; Return Home</a>
-        <footer class="site-footer">
-            <span>CNC SMART WRITER</span>
-            <span>Human-verified text preparation &amp; G-Code export pipeline</span>
-        </footer>
-    </main>
-    <script>
-        const jobId = {{ job_id|tojson }};
-        const statusUrl = `/status/${jobId}`;
-        const message = document.getElementById("processing-message");
-        const progress = document.getElementById("progress-bar");
-        const fill = document.getElementById("progress-fill");
-        const errorBox = document.getElementById("processing-error");
-        const stepOrder = ["queued", "ocr", "model", "review", "complete"];
-        let polling = true;
-        const startedAt = performance.now();
+  <script>
+    const body = document.body;
+    const sunIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"></circle><path stroke-linecap="round" d="M12 2v2m0 16v2M4.93 4.93l1.41 1.41m11.32 11.32l1.41 1.41M2 12h2m16 0h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>';
+    const moonIcon = '<svg class="w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"></path></svg>';
+    let currentTheme = localStorage.getItem("cnc-smart-writer-theme") || "obsidian";
+    if (!["obsidian", "bento"].includes(currentTheme)) currentTheme = "obsidian";
 
-        function updateElapsedTime() {
-            const elapsedSeconds = Math.floor((performance.now() - startedAt) / 1000);
-            const minutes = String(Math.floor(elapsedSeconds / 60)).padStart(2, "0");
-            const seconds = String(elapsedSeconds % 60).padStart(2, "0");
-            document.getElementById("processing-elapsed").textContent =
-                `Elapsed time: ${minutes}:${seconds}`;
+    function setTheme(theme) {
+      currentTheme = theme;
+      body.setAttribute("data-theme", theme);
+      document.getElementById("theme-label").textContent = theme === "obsidian" ? "Bento Light" : "Obsidian Dark";
+      document.getElementById("theme-icon").innerHTML = theme === "obsidian" ? sunIcon : moonIcon;
+      localStorage.setItem("cnc-smart-writer-theme", theme);
+    }
+
+    function toggleTheme() {
+      setTheme(currentTheme === "obsidian" ? "bento" : "obsidian");
+    }
+    setTheme(currentTheme);
+
+    const jobId = {{ job_id|tojson }};
+    const stepDefinitions = {{ pipeline_steps|tojson }};
+
+    function setPipelineStep(key, state) {
+      const step = document.querySelector(`[data-pipeline-step="${key}"]`);
+      if (!step) return;
+      const indicator = step.querySelector(".step-indicator");
+      const status = step.querySelector(".step-status");
+      const label = step.querySelector(".step-label");
+      const index = stepDefinitions.findIndex((item) => item.key === key) + 1;
+      step.dataset.state = state;
+      step.classList.remove("opacity-55");
+      step.style.borderColor = "";
+      indicator.style.cssText = "";
+      status.style.cssText = "";
+      label.style.cssText = "";
+      indicator.className = "step-indicator w-6 h-6 rounded-full flex items-center justify-center";
+      status.className = "step-status font-mono-tech text-[10px]";
+      label.className = "step-label text-xs font-medium";
+
+      if (state === "done") {
+        indicator.className += " bg-emerald-500/20 text-emerald-400 text-xs font-bold";
+        indicator.textContent = "✓";
+        status.className += " font-semibold px-2.5 py-0.5 rounded-md bg-emerald-500/15 text-emerald-400";
+        status.textContent = "DONE";
+        label.classList.add("font-semibold");
+      } else if (state === "active" || state === "failed") {
+        step.style.borderColor = state === "failed" ? "#ef4444" : "var(--accent)";
+        indicator.style.background = state === "failed" ? "rgba(239,68,68,.12)" : "var(--accent-soft)";
+        indicator.innerHTML = state === "failed"
+          ? '<span style="color:#ef4444;font-size:12px;font-weight:700">!</span>'
+          : '<span class="w-2 h-2 rounded-full live-dot" style="background: var(--accent);"></span>';
+        status.className += " font-semibold px-2.5 py-0.5 rounded-md";
+        status.style.background = state === "failed" ? "rgba(239,68,68,.12)" : "var(--accent-soft)";
+        status.style.color = state === "failed" ? "#ef4444" : "var(--accent)";
+        status.textContent = state === "failed" ? "ERROR" : "ACTIVE";
+        label.classList.add("font-semibold");
+        label.style.color = state === "failed" ? "#ef4444" : "var(--accent)";
+      } else {
+        step.classList.add("opacity-55");
+        indicator.classList.add("font-mono-tech", "text-[11px]");
+        indicator.style.background = "var(--bg-input)";
+        indicator.style.color = "var(--text-dim)";
+        indicator.textContent = String(index);
+        status.style.color = "var(--text-dim)";
+        status.textContent = "PENDING";
+      }
+    }
+
+    function updatePipeline(state) {
+      const completed = new Set(state.completed_steps || []);
+      const laserBeam = document.querySelector(".laser-beam");
+      const processingActive = !["complete", "failed"].includes(state.stage);
+      laserBeam.style.animationPlayState = processingActive ? "running" : "paused";
+      laserBeam.style.visibility = processingActive ? "visible" : "hidden";
+      for (const step of stepDefinitions) {
+        const status = completed.has(step.key)
+          ? "done"
+          : (step.key === state.current_step ? (state.stage === "failed" ? "failed" : "active") : "pending");
+        setPipelineStep(step.key, status);
+      }
+      const doneCount = stepDefinitions.filter((step) => completed.has(step.key)).length;
+      const activeCount = state.current_step && !completed.has(state.current_step) ? 0.5 : 0;
+      document.getElementById("pipeline-progress-bar").style.width =
+        `${state.stage === "complete" ? 100 : Math.round(((doneCount + activeCount) / stepDefinitions.length) * 100)}%`;
+      document.getElementById("processing-message").textContent = state.message || "";
+
+      if (state.model_status === "offline") {
+        document.getElementById("offline-notice").classList.remove("hidden");
+      }
+      if (state.stage === "failed") {
+        document.getElementById("processing-heading").textContent = "Processing could not be completed";
+        document.getElementById("processing-error").textContent = state.error || state.message;
+        document.getElementById("processing-error").classList.remove("hidden");
+        document.getElementById("retry-form").classList.remove("hidden");
+        return true;
+      }
+      if (state.stage === "complete") {
+        document.getElementById("processing-heading").textContent = "Your output is ready to review";
+        const continueButton = document.getElementById("continue-button");
+        continueButton.classList.remove("hidden");
+        continueButton.classList.add("flex");
+        return true;
+      }
+      return false;
+    }
+
+    async function pollStatus() {
+      while (true) {
+        try {
+          const response = await fetch(`/status/${jobId}`, {cache: "no-store"});
+          if (!response.ok) throw new Error("Unable to read processing status. Return to Input and try again.");
+          const state = await response.json();
+          if (updatePipeline(state)) return;
+        } catch (error) {
+          document.getElementById("processing-message").textContent = error.message;
         }
-
-        async function pollStatus() {
-            while (polling) {
-                updateElapsedTime();
-                try {
-                    const response = await fetch(statusUrl, {cache: "no-store"});
-                    if (!response.ok) throw new Error("Could not read the job status. Refresh the page or start again.");
-                    const state = await response.json();
-                    message.textContent = state.message;
-                    fill.style.width = `${state.progress}%`;
-                    progress.setAttribute("aria-valuenow", state.progress);
-
-                    const activeIndex = stepOrder.indexOf(state.stage);
-                    document.querySelectorAll(".processing-steps li").forEach((item) => {
-                        const itemIndex = stepOrder.indexOf(item.dataset.stage);
-                        const skipped = item.dataset.stage === "model"
-                            && (state.model_status === "skipped" || state.stage === "review");
-                        const done = !skipped && (itemIndex < activeIndex || state.stage === "complete");
-                        item.classList.toggle("is-done", done);
-                        item.classList.toggle("is-active", item.dataset.stage === state.stage);
-                        item.classList.toggle("is-skipped", skipped);
-                        const indicator = item.querySelector(".stage-indicator");
-                        indicator.textContent = done ? "✓" : (skipped ? "–" : String(itemIndex + 1));
-                    });
-
-                    if (state.stage === "complete") {
-                        polling = false;
-                        window.location.assign(state.result_url);
-                        return;
-                    }
-                    if (state.stage === "failed") {
-                        polling = false;
-                        document.querySelector(".processing-orbit").hidden = true;
-                        errorBox.hidden = false;
-                        document.getElementById("processing-error-message").textContent = state.error;
-                        return;
-                    }
-                } catch (error) {
-                    message.textContent = error.message;
-                }
-                await new Promise((resolve) => setTimeout(resolve, 900));
-            }
-        }
-
-        pollStatus();
-    </script>
+        await new Promise((resolve) => setTimeout(resolve, 850));
+      }
+    }
+    if (stepDefinitions.length) {
+      setPipelineStep(stepDefinitions[0].key, "active");
+      document.getElementById("pipeline-progress-bar").style.width =
+        `${Math.round(50 / stepDefinitions.length)}%`;
+    }
+    pollStatus();
+  </script>
 </body>
 </html>
