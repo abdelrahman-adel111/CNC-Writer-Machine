@@ -1,8 +1,58 @@
-1
-.pytest_cache
+# Test & experiment artifacts
+.pytest_cache/
 files from my assistant
 demo_test.png
 image.png
 imageProcessing2.ipynb
 ScriptSerial.py
 test.ipynb
+
+# Script1 benchmark datasets & sample images
+Script1/benchmark_*
+!Script1/benchmark_ocr_engines.py
+!Script1/evaluate_ocr.py
+Script1/benchmark_document_images/
+Script1/benchmark_external_images/
+Script1/benchmark_images/
+Script1/benchmark_real_images/
+
+# Python cache & build files
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment variables & local databases
+.env
+.env.*
+!.env.example
+instance/
+*.db
+*.sqlite3
+
+# Temporary uploads, logs, and outputs
+Web/uploads/*
+!Web/uploads/.gitkeep
+uploads/*
+!uploads/.gitkeep
+*.log
+temp/
+tmp/
+output/
+outputs/
+
+# OS & editor files
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/*
+!.vscode/settings.json
+.idea/
